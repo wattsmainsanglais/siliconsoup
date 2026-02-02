@@ -86,11 +86,30 @@ func main() {
 	// Admin endpoints
 	admin := api.Group("/admin")
 	admin.Post("/upload", adminHandler.UploadImage)
+
+	// Categories
 	admin.Post("/categories", adminHandler.CreateCategory)
+	admin.Put("/categories/:id", adminHandler.UpdateCategory)
+	admin.Delete("/categories/:id", adminHandler.DeleteCategory)
+
+	// Option Groups
 	admin.Post("/option-groups", adminHandler.CreateOptionGroup)
+	admin.Put("/option-groups/:id", adminHandler.UpdateOptionGroup)
+	admin.Delete("/option-groups/:id", adminHandler.DeleteOptionGroup)
+
+	// Option Values
 	admin.Post("/option-values", adminHandler.CreateOptionValue)
+	admin.Put("/option-values/:id", adminHandler.UpdateOptionValue)
+	admin.Delete("/option-values/:id", adminHandler.DeleteOptionValue)
+
+	// Products
 	admin.Post("/products", adminHandler.CreateProduct)
+	admin.Put("/products/:id", adminHandler.UpdateProduct)
+	admin.Delete("/products/:id", adminHandler.DeleteProduct)
+
+	// Product Options (linking)
 	admin.Post("/product-options", adminHandler.CreateProductOption)
+	admin.Delete("/product-options/:productId/:optionGroupId", adminHandler.DeleteProductOption)
 
 	// Graceful shutdown
 	go func() {

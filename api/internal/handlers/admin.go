@@ -284,3 +284,271 @@ func (h *AdminHandler) CreateProductOption(c *fiber.Ctx) error {
 		"sort_order":      sortOrder,
 	})
 }
+
+// ============ UPDATE HANDLERS ============
+
+// UpdateCategory updates an existing category
+func (h *AdminHandler) UpdateCategory(c *fiber.Ctx) error {
+	id := c.Params("id")
+	var req models.CreateCategoryRequest
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": "Invalid request body"})
+	}
+
+	ctx := context.Background()
+
+	query := `
+		UPDATE categories
+		SET slug = COALESCE(NULLIF($1, ''), slug),
+			name = COALESCE(NULLIF($2, ''), name),
+			description = $3,
+			parent_id = $4,
+			sort_order = $5
+		WHERE id = $6 AND site_id = $7
+		RETURNING id, site_id, slug, name, description, parent_id, sort_order, created_at
+	`
+
+	var cat models.Category
+	err := h.db.QueryRow(ctx, query,
+		req.Slug, req.Name, req.Description, req.ParentID, req.SortOrder, id, h.siteID,
+	).Scan(&cat.ID, &cat.SiteID, &cat.Slug, &cat.Name, &cat.Description, &cat.ParentID, &cat.SortOrder, &cat.CreatedAt)
+
+	if err != nil {
+		if strings.Contains(err.Error(), "no rows") {
+			return c.Status(404).JSON(fiber.Map{"error": "Category not found"})
+		}
+		return c.Status(500).JSON(fiber.Map{"error": "Failed to update category", "details": err.Error()})
+	}
+
+	return c.JSON(cat)
+}
+
+// UpdateOptionGroup updates an existing option group
+func (h *AdminHandler) UpdateOptionGroup(c *fiber.Ctx) error {
+	id := c.Params("id")
+	var req models.CreateOptionGroupRequest
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": "Invalid request body"})
+	}
+
+	ctx := context.Background()
+
+	query := `
+		UPDATE option_groups
+		SET name = COALESCE(NULLIF($1, ''), name),
+			type = COALESCE(NULLIF($2, ''), type),
+			required = $3
+		WHERE id = $4 AND site_id = $5
+		RETURNING id, site_id, name, type, required, created_at
+	`
+
+	var og models.OptionGroup
+	err := h.db.QueryRow(ctx, query,
+		req.Name, req.Type, req.Required, id, h.siteID,
+	).Scan(&og.ID, &og.SiteID, &og.Name, &og.Type, &og.Required, &og.CreatedAt)
+
+	if err != nil {
+		if strings.Contains(err.Error(), "no rows") {
+			return c.Status(404).JSON(fiber.Map{"error": "Option group not found"})
+		}
+		return c.Status(500).JSON(fiber.Map{"error": "Failed to update option group", "details": err.Error()})
+	}
+
+	return c.JSON(og)
+}
+
+// UpdateOptionValue updates an existing option value
+func (h *AdminHandler) UpdateOptionValue(c *fiber.Ctx) error {
+	id := c.Params("id")
+	var req models.CreateOptionValueRequest
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": "Invalid request body"})
+	}
+
+	ctx := context.Background()
+
+	query := `
+		UPDATE option_values
+		SET value = COALESCE(NULLIF($1, ''), value),
+			label = COALESCE(NULLIF($2, ''), label),
+			price_modifier_pence = $3,
+			sort_order = $4,
+			is_default = $5
+		WHERE id = $6
+		RETURNING id, option_group_id, value, label, price_modifier_pence, sort_order, is_default, created_at
+	`
+
+	var ov models.OptionValue
+	err := h.db.QueryRow(ctx, query,
+		req.Value, req.Label, req.PriceModifierPence, req.SortOrder, req.IsDefault, id,
+	).Scan(&ov.ID, &ov.OptionGroupID, &ov.Value, &ov.Label, &ov.PriceModifierPence, &ov.SortOrder, &ov.IsDefault, &ov.CreatedAt)
+
+	if err != nil {
+		if strings.Contains(err.Error(), "no rows") {
+			return c.Status(404).JSON(fiber.Map{"error": "Option value not found"})
+		}
+		return c.Status(500).JSON(fiber.Map{"error": "Failed to update option value", "details": err.Error()})
+	}
+
+	return c.JSON(ov)
+}
+
+// UpdateProduct updates an existing product
+func (h *AdminHandler) UpdateProduct(c *fiber.Ctx) error {
+	id := c.Params("id")
+	var req models.CreateProductRequest
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": "Invalid request body"})
+	}
+
+	// Convert images to JSON
+	imagesJSON, err := json.Marshal(req.Images)
+	if err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": "Invalid images format"})
+	}
+
+	ctx := context.Background()
+
+	query := `
+		UPDATE products
+		SET category_id = $1,
+			slug = COALESCE(NULLIF($2, ''), slug),
+			name = COALESCE(NULLIF($3, ''), name),
+			description = $4,
+			short_description = $5,
+			base_price_pence = $6,
+			sku = $7,
+			weight_grams = $8,
+			images = $9,
+			status = COALESCE(NULLIF($10, ''), status),
+			featured = $11,
+			updated_at = NOW()
+		WHERE id = $12 AND site_id = $13
+		RETURNING id, site_id, category_id, slug, name, description, short_description,
+			base_price_pence, sku, weight_grams, images, status, featured, created_at, updated_at
+	`
+
+	var p models.Product
+	err = h.db.QueryRow(ctx, query,
+		req.CategoryID, req.Slug, req.Name, req.Description, req.ShortDescription,
+		req.BasePricePence, req.SKU, req.WeightGrams, imagesJSON, req.Status, req.Featured,
+		id, h.siteID,
+	).Scan(&p.ID, &p.SiteID, &p.CategoryID, &p.Slug, &p.Name, &p.Description, &p.ShortDescription,
+		&p.BasePricePence, &p.SKU, &p.WeightGrams, &p.Images, &p.Status, &p.Featured, &p.CreatedAt, &p.UpdatedAt)
+
+	if err != nil {
+		if strings.Contains(err.Error(), "no rows") {
+			return c.Status(404).JSON(fiber.Map{"error": "Product not found"})
+		}
+		return c.Status(500).JSON(fiber.Map{"error": "Failed to update product", "details": err.Error()})
+	}
+
+	return c.JSON(p)
+}
+
+// ============ DELETE HANDLERS ============
+
+// DeleteCategory deletes a category
+func (h *AdminHandler) DeleteCategory(c *fiber.Ctx) error {
+	id := c.Params("id")
+	ctx := context.Background()
+
+	result, err := h.db.Exec(ctx,
+		"DELETE FROM categories WHERE id = $1 AND site_id = $2",
+		id, h.siteID)
+
+	if err != nil {
+		if strings.Contains(err.Error(), "foreign key") {
+			return c.Status(409).JSON(fiber.Map{"error": "Cannot delete category with products or subcategories"})
+		}
+		return c.Status(500).JSON(fiber.Map{"error": "Failed to delete category"})
+	}
+
+	if result.RowsAffected() == 0 {
+		return c.Status(404).JSON(fiber.Map{"error": "Category not found"})
+	}
+
+	return c.Status(204).Send(nil)
+}
+
+// DeleteOptionGroup deletes an option group
+func (h *AdminHandler) DeleteOptionGroup(c *fiber.Ctx) error {
+	id := c.Params("id")
+	ctx := context.Background()
+
+	result, err := h.db.Exec(ctx,
+		"DELETE FROM option_groups WHERE id = $1 AND site_id = $2",
+		id, h.siteID)
+
+	if err != nil {
+		if strings.Contains(err.Error(), "foreign key") {
+			return c.Status(409).JSON(fiber.Map{"error": "Cannot delete option group with values or linked products"})
+		}
+		return c.Status(500).JSON(fiber.Map{"error": "Failed to delete option group"})
+	}
+
+	if result.RowsAffected() == 0 {
+		return c.Status(404).JSON(fiber.Map{"error": "Option group not found"})
+	}
+
+	return c.Status(204).Send(nil)
+}
+
+// DeleteOptionValue deletes an option value
+func (h *AdminHandler) DeleteOptionValue(c *fiber.Ctx) error {
+	id := c.Params("id")
+	ctx := context.Background()
+
+	result, err := h.db.Exec(ctx, "DELETE FROM option_values WHERE id = $1", id)
+
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "Failed to delete option value"})
+	}
+
+	if result.RowsAffected() == 0 {
+		return c.Status(404).JSON(fiber.Map{"error": "Option value not found"})
+	}
+
+	return c.Status(204).Send(nil)
+}
+
+// DeleteProduct deletes a product
+func (h *AdminHandler) DeleteProduct(c *fiber.Ctx) error {
+	id := c.Params("id")
+	ctx := context.Background()
+
+	result, err := h.db.Exec(ctx,
+		"DELETE FROM products WHERE id = $1 AND site_id = $2",
+		id, h.siteID)
+
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "Failed to delete product"})
+	}
+
+	if result.RowsAffected() == 0 {
+		return c.Status(404).JSON(fiber.Map{"error": "Product not found"})
+	}
+
+	return c.Status(204).Send(nil)
+}
+
+// DeleteProductOption removes a product-option group link
+func (h *AdminHandler) DeleteProductOption(c *fiber.Ctx) error {
+	productID := c.Params("productId")
+	optionGroupID := c.Params("optionGroupId")
+	ctx := context.Background()
+
+	result, err := h.db.Exec(ctx,
+		"DELETE FROM product_options WHERE product_id = $1 AND option_group_id = $2",
+		productID, optionGroupID)
+
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "Failed to delete product option link"})
+	}
+
+	if result.RowsAffected() == 0 {
+		return c.Status(404).JSON(fiber.Map{"error": "Product option link not found"})
+	}
+
+	return c.Status(204).Send(nil)
+}
