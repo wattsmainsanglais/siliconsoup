@@ -9,7 +9,8 @@ Custom e-commerce platform for SiliconSoup (siliconsoup.co.uk), selling RFID rea
 - **Backend**: Go with Fiber framework
 - **Database**: PostgreSQL 16
 - **Frontend**: Vite + React (planned)
-- **Deployment**: Docker Compose (local), Railway (API), Vercel (frontend)
+- **Deployment**: Docker Compose (local dev), VPS with Caddy (production)
+- **Image Storage**: Local filesystem (`./uploads/`), bind-mounted in Docker
 
 ## Key Concepts
 
@@ -37,17 +38,27 @@ All prices stored as integers in pence to avoid floating point issues.
 ## Project Structure
 
 ```
-api/
-├── cmd/server/main.go       # Entry point
-├── internal/
-│   ├── config/              # Environment config
-│   ├── database/            # DB connection, migrations
-│   ├── handlers/            # HTTP handlers
-│   ├── models/              # Data structures
-│   └── middleware/          # CORS, logging
-├── migrations/              # SQL migrations
-├── go.mod
-└── Dockerfile
+siliconsoup/
+├── api/
+│   ├── cmd/server/main.go       # Entry point
+│   ├── internal/
+│   │   ├── config/              # Environment config
+│   │   ├── database/            # DB connection, migrations
+│   │   ├── handlers/
+│   │   │   ├── products.go      # Public product endpoints
+│   │   │   ├── categories.go    # Public category endpoints
+│   │   │   ├── shipping.go      # Public shipping endpoints
+│   │   │   └── admin.go         # All admin CRUD endpoints
+│   │   ├── models/              # Data structures
+│   │   └── middleware/          # CORS, logging
+│   ├── migrations/              # SQL migrations
+│   ├── go.mod
+│   └── Dockerfile
+├── uploads/                     # Image storage (bind-mounted)
+│   └── products/
+├── frontend/                    # Vite + React (planned)
+├── docker-compose.yml
+└── CLAUDE.md
 ```
 
 ## Development
@@ -114,11 +125,36 @@ Run automatically on server start. Files in `api/migrations/` named like `001_in
 ### Public
 - `GET /api/products` - List active products
 - `GET /api/products/:slug` - Product with full options
-- `GET /api/categories` - Category tree
+- `GET /api/categories` - Flat list (default) or nested tree with `?tree=true`
 - `GET /api/shipping-zones` - Shipping rates
 
-### Admin (TODO)
-- CRUD for products, categories, option groups, orders
+### Admin - Categories
+- `POST /api/admin/categories` - Create category
+- `PUT /api/admin/categories/:id` - Update category
+- `DELETE /api/admin/categories/:id` - Delete category
+
+### Admin - Option Groups
+- `POST /api/admin/option-groups` - Create option group
+- `PUT /api/admin/option-groups/:id` - Update option group
+- `DELETE /api/admin/option-groups/:id` - Delete option group
+
+### Admin - Option Values
+- `POST /api/admin/option-values` - Create option value
+- `PUT /api/admin/option-values/:id` - Update option value
+- `DELETE /api/admin/option-values/:id` - Delete option value
+
+### Admin - Products
+- `POST /api/admin/products` - Create product
+- `PUT /api/admin/products/:id` - Update product
+- `DELETE /api/admin/products/:id` - Delete product
+
+### Admin - Product Options (linking)
+- `POST /api/admin/product-options` - Link product to option group
+- `DELETE /api/admin/product-options/:productId/:optionGroupId` - Unlink
+
+### Admin - Uploads
+- `POST /api/admin/upload` - Upload image (form: `image` file, `folder` string)
+- `GET /uploads/:folder/:filename` - Serve uploaded files
 
 ## Environment Variables
 
