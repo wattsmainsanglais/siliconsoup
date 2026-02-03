@@ -103,6 +103,7 @@ func main() {
 	admin.Delete("/option-values/:id", adminHandler.DeleteOptionValue)
 
 	// Products
+	admin.Get("/products", adminHandler.ListProducts)
 	admin.Post("/products", adminHandler.CreateProduct)
 	admin.Put("/products/:id", adminHandler.UpdateProduct)
 	admin.Delete("/products/:id", adminHandler.DeleteProduct)

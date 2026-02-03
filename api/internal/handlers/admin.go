@@ -82,6 +82,60 @@ func (h *AdminHandler) UploadImage(c *fiber.Ctx) error {
 	})
 }
 
+// ListProducts returns ALL products for admin (including drafts/archived)
+func (h *AdminHandler) ListProducts(c *fiber.Ctx) error {
+	ctx := context.Background()
+
+	query := `
+		SELECT p.id, p.slug, p.name, p.description, p.short_description, p.base_price_pence,
+			p.images, p.status, p.featured, p.category_id,
+			c.slug as category_slug, c.name as category_name
+		FROM products p
+		LEFT JOIN categories c ON p.category_id = c.id
+		WHERE p.site_id = $1
+		ORDER BY p.created_at DESC
+	`
+
+	rows, err := h.db.Query(ctx, query, h.siteID)
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "Failed to fetch products"})
+	}
+	defer rows.Close()
+
+	// Admin-specific product struct with all fields needed for editing
+	type AdminProduct struct {
+		ID               string          `json:"id"`
+		Slug             string          `json:"slug"`
+		Name             string          `json:"name"`
+		Description      *string         `json:"description,omitempty"`
+		ShortDescription *string         `json:"short_description,omitempty"`
+		BasePricePence   int             `json:"base_price_pence"`
+		Images           json.RawMessage `json:"images"`
+		Status           string          `json:"status"`
+		Featured         bool            `json:"featured"`
+		CategoryID       *string         `json:"category_id,omitempty"`
+		CategorySlug     *string         `json:"category_slug,omitempty"`
+		CategoryName     *string         `json:"category_name,omitempty"`
+	}
+
+	var products []AdminProduct
+	for rows.Next() {
+		var p AdminProduct
+		err := rows.Scan(&p.ID, &p.Slug, &p.Name, &p.Description, &p.ShortDescription, &p.BasePricePence,
+			&p.Images, &p.Status, &p.Featured, &p.CategoryID, &p.CategorySlug, &p.CategoryName)
+		if err != nil {
+			return c.Status(500).JSON(fiber.Map{"error": "Failed to scan product", "details": err.Error()})
+		}
+
+		products = append(products, p)
+	}
+
+	return c.JSON(fiber.Map{
+		"products": products,
+		"count":    len(products),
+	})
+}
+
 // CreateCategory creates a new category
 func (h *AdminHandler) CreateCategory(c *fiber.Ctx) error {
 	var req models.CreateCategoryRequest

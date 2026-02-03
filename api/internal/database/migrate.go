@@ -56,7 +56,7 @@ func RunMigrations(pool *pgxpool.Pool, migrationsDir string) error {
 			continue
 		}
 
-		// Read and execute migration
+		// Read migration content
 		content, err := os.ReadFile(filepath.Join(migrationsDir, migration))
 		if err != nil {
 			return fmt.Errorf("failed to read migration %s: %w", migration, err)
@@ -64,18 +64,33 @@ func RunMigrations(pool *pgxpool.Pool, migrationsDir string) error {
 
 		fmt.Printf("Applying migration %s...\n", migration)
 
-		_, err = pool.Exec(ctx, string(content))
+		// Run migration in a transaction
+		tx, err := pool.Begin(ctx)
 		if err != nil {
+			return fmt.Errorf("failed to begin transaction for migration %s: %w", migration, err)
+		}
+
+		// Execute migration SQL
+		_, err = tx.Exec(ctx, string(content))
+		if err != nil {
+			tx.Rollback(ctx)
 			return fmt.Errorf("failed to apply migration %s: %w", migration, err)
 		}
 
-		// Record migration
-		_, err = pool.Exec(ctx,
+		// Record migration in same transaction
+		_, err = tx.Exec(ctx,
 			"INSERT INTO schema_migrations (version) VALUES ($1)",
 			migration,
 		)
 		if err != nil {
+			tx.Rollback(ctx)
 			return fmt.Errorf("failed to record migration %s: %w", migration, err)
+		}
+
+		// Commit transaction
+		err = tx.Commit(ctx)
+		if err != nil {
+			return fmt.Errorf("failed to commit migration %s: %w", migration, err)
 		}
 
 		fmt.Printf("Migration %s applied successfully\n", migration)
