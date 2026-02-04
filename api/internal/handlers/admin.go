@@ -240,6 +240,62 @@ func (h *AdminHandler) CreateCategory(c *fiber.Ctx) error {
 	return c.Status(201).JSON(cat)
 }
 
+// ListOptionGroups returns all option groups with their values
+func (h *AdminHandler) ListOptionGroups(c *fiber.Ctx) error {
+	ctx := context.Background()
+
+	query := `
+		SELECT og.id, og.site_id, og.name, og.type, og.required, og.created_at
+		FROM option_groups og
+		WHERE og.site_id = $1
+		ORDER BY og.name
+	`
+
+	rows, err := h.db.Query(ctx, query, h.siteID)
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "Failed to fetch option groups"})
+	}
+	defer rows.Close()
+
+	var groups []models.OptionGroup
+	for rows.Next() {
+		var og models.OptionGroup
+		err := rows.Scan(&og.ID, &og.SiteID, &og.Name, &og.Type, &og.Required, &og.CreatedAt)
+		if err != nil {
+			return c.Status(500).JSON(fiber.Map{"error": "Failed to scan option group"})
+		}
+		groups = append(groups, og)
+	}
+
+	// Fetch values for each group
+	for i := range groups {
+		valuesQuery := `
+			SELECT id, option_group_id, value, label, price_modifier_pence, sort_order, is_default, created_at
+			FROM option_values
+			WHERE option_group_id = $1
+			ORDER BY sort_order, label
+		`
+		valueRows, err := h.db.Query(ctx, valuesQuery, groups[i].ID)
+		if err != nil {
+			continue
+		}
+
+		var values []models.OptionValue
+		for valueRows.Next() {
+			var ov models.OptionValue
+			valueRows.Scan(&ov.ID, &ov.OptionGroupID, &ov.Value, &ov.Label, &ov.PriceModifierPence, &ov.SortOrder, &ov.IsDefault, &ov.CreatedAt)
+			values = append(values, ov)
+		}
+		valueRows.Close()
+		groups[i].Values = values
+	}
+
+	return c.JSON(fiber.Map{
+		"option_groups": groups,
+		"count":         len(groups),
+	})
+}
+
 // CreateOptionGroup creates a new option group
 func (h *AdminHandler) CreateOptionGroup(c *fiber.Ctx) error {
 	var req models.CreateOptionGroupRequest
@@ -634,11 +690,29 @@ func (h *AdminHandler) DeleteOptionValue(c *fiber.Ctx) error {
 	return c.Status(204).Send(nil)
 }
 
-// DeleteProduct deletes a product
+// DeleteProduct deletes a product and its associated images
 func (h *AdminHandler) DeleteProduct(c *fiber.Ctx) error {
 	id := c.Params("id")
 	ctx := context.Background()
 
+	// Fetch product images before deletion
+	var imagesJSON json.RawMessage
+	err := h.db.QueryRow(ctx,
+		"SELECT COALESCE(images, '[]'::jsonb) FROM products WHERE id = $1 AND site_id = $2",
+		id, h.siteID,
+	).Scan(&imagesJSON)
+
+	if err != nil {
+		return c.Status(404).JSON(fiber.Map{"error": "Product not found"})
+	}
+
+	// Parse images to get file paths
+	var images []map[string]interface{}
+	if err := json.Unmarshal(imagesJSON, &images); err != nil {
+		images = []map[string]interface{}{}
+	}
+
+	// Delete the product from DB
 	result, err := h.db.Exec(ctx,
 		"DELETE FROM products WHERE id = $1 AND site_id = $2",
 		id, h.siteID)
@@ -651,7 +725,71 @@ func (h *AdminHandler) DeleteProduct(c *fiber.Ctx) error {
 		return c.Status(404).JSON(fiber.Map{"error": "Product not found"})
 	}
 
+	// Delete associated image files from disk
+	var deletedFiles []string
+	var failedFiles []string
+	for _, img := range images {
+		if url, ok := img["url"].(string); ok {
+			// url is like "/uploads/products/abc-123.jpg"
+			// Convert to filesystem path
+			relativePath := strings.TrimPrefix(url, "/uploads/")
+			filePath := filepath.Join(h.uploadPath, relativePath)
+
+			if err := os.Remove(filePath); err != nil {
+				if !os.IsNotExist(err) {
+					failedFiles = append(failedFiles, url)
+				}
+			} else {
+				deletedFiles = append(deletedFiles, url)
+			}
+		}
+	}
+
+	// Return 204 with no body for clean delete, or 200 with details if there were issues
+	if len(failedFiles) > 0 {
+		return c.Status(200).JSON(fiber.Map{
+			"message":       "Product deleted, but some images could not be removed",
+			"deleted_files": deletedFiles,
+			"failed_files":  failedFiles,
+		})
+	}
+
 	return c.Status(204).Send(nil)
+}
+
+// GetProductOptions returns option groups linked to a product
+func (h *AdminHandler) GetProductOptions(c *fiber.Ctx) error {
+	productID := c.Params("id")
+	ctx := context.Background()
+
+	query := `
+		SELECT og.id, og.site_id, og.name, og.type, og.required, po.sort_order, og.created_at
+		FROM option_groups og
+		INNER JOIN product_options po ON og.id = po.option_group_id
+		WHERE po.product_id = $1
+		ORDER BY po.sort_order
+	`
+
+	rows, err := h.db.Query(ctx, query, productID)
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "Failed to fetch product options"})
+	}
+	defer rows.Close()
+
+	var groups []models.OptionGroup
+	for rows.Next() {
+		var og models.OptionGroup
+		err := rows.Scan(&og.ID, &og.SiteID, &og.Name, &og.Type, &og.Required, &og.SortOrder, &og.CreatedAt)
+		if err != nil {
+			continue
+		}
+		groups = append(groups, og)
+	}
+
+	return c.JSON(fiber.Map{
+		"option_groups": groups,
+		"count":         len(groups),
+	})
 }
 
 // DeleteProductOption removes a product-option group link

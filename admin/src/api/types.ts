@@ -17,8 +17,8 @@ export interface OptionGroup {
   id: string;
   site_id: string;
   name: string;
-  display_name: string;
   type: string;
+  required: boolean;
   created_at: string;
   updated_at?: string;
   values?: OptionValue[];
@@ -28,9 +28,10 @@ export interface OptionValue {
   id: string;
   option_group_id: string;
   value: string;
-  display_name: string;
+  label: string;
   price_modifier_pence: number;
   sort_order: number;
+  is_default: boolean;
   created_at: string;
   updated_at?: string;
 }
@@ -87,14 +88,14 @@ export interface CreateCategoryRequest {
 
 export interface CreateOptionGroupRequest {
   name: string;
-  display_name: string;
   type: string;
+  required?: boolean;
 }
 
 export interface CreateOptionValueRequest {
   option_group_id: string;
   value: string;
-  display_name: string;
+  label: string;
   price_modifier_pence?: number;
   sort_order?: number;
 }

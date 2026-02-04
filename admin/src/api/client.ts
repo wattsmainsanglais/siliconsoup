@@ -70,7 +70,16 @@ export const categories = {
 };
 
 // Option Groups
+interface OptionGroupsResponse {
+  option_groups: import('./types').OptionGroup[];
+  count: number;
+}
+
 export const optionGroups = {
+  list: async () => {
+    const res = await request<OptionGroupsResponse>('/api/admin/option-groups');
+    return res.option_groups;
+  },
   create: (data: import('./types').CreateOptionGroupRequest) =>
     request<import('./types').OptionGroup>('/api/admin/option-groups', {
       method: 'POST',
@@ -102,6 +111,11 @@ export const optionValues = {
 };
 
 // Products
+interface ProductOptionsResponse {
+  option_groups: import('./types').OptionGroup[];
+  count: number;
+}
+
 export const products = {
   list: async () => {
     // Use admin endpoint to get ALL products (including drafts)
@@ -122,6 +136,10 @@ export const products = {
   delete: (id: string) =>
     request<void>(`/api/admin/products/${id}`, { method: 'DELETE' }),
   // Product Options
+  getOptions: async (productId: string) => {
+    const res = await request<ProductOptionsResponse>(`/api/admin/products/${productId}/options`);
+    return res.option_groups || [];
+  },
   addOption: (productId: string, optionGroupId: string) =>
     request<void>('/api/admin/product-options', {
       method: 'POST',

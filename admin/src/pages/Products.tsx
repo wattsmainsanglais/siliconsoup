@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { products, categories, images } from '../api/client';
-import type { Product, Category, CreateProductRequest, ProductImage } from '../api/types';
+import { products, categories, images, optionGroups } from '../api/client';
+import type { Product, Category, CreateProductRequest, ProductImage, OptionGroup } from '../api/types';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8080';
 
@@ -22,16 +22,20 @@ export default function Products() {
   });
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [currentImages, setCurrentImages] = useState<ProductImage[]>([]);
+  const [allOptionGroups, setAllOptionGroups] = useState<OptionGroup[]>([]);
+  const [linkedOptionGroups, setLinkedOptionGroups] = useState<OptionGroup[]>([]);
 
   const loadData = async () => {
     try {
       setLoading(true);
-      const [prodsData, catsData] = await Promise.all([
+      const [prodsData, catsData, optGroupsData] = await Promise.all([
         products.list(),
         categories.list(),
+        optionGroups.list(),
       ]);
       setItems(prodsData);
       setCats(catsData);
+      setAllOptionGroups(optGroupsData || []);
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load');
@@ -64,13 +68,14 @@ export default function Products() {
       setForm({ name: '', slug: '', short_description: '', description: '', category_id: null, base_price_pence: 0, status: 'draft' });
       setSelectedFile(null);
       setCurrentImages([]);
+      setLinkedOptionGroups([]);
       loadData();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save');
     }
   };
 
-  const handleEdit = (prod: Product) => {
+  const handleEdit = async (prod: Product) => {
     setForm({
       name: prod.name,
       slug: prod.slug,
@@ -83,6 +88,14 @@ export default function Products() {
     setEditingId(prod.id);
     setCurrentImages(prod.images || []);
     setShowForm(true);
+
+    // Fetch linked option groups
+    try {
+      const linked = await products.getOptions(prod.id);
+      setLinkedOptionGroups(linked);
+    } catch {
+      setLinkedOptionGroups([]);
+    }
   };
 
   const handleDelete = async (id: string) => {
@@ -92,6 +105,27 @@ export default function Products() {
       loadData();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to delete');
+    }
+  };
+
+  const handleAddOptionGroup = async (optionGroupId: string) => {
+    if (!editingId) return;
+    try {
+      await products.addOption(editingId, optionGroupId);
+      const linked = await products.getOptions(editingId);
+      setLinkedOptionGroups(linked);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to add option group');
+    }
+  };
+
+  const handleRemoveOptionGroup = async (optionGroupId: string) => {
+    if (!editingId) return;
+    try {
+      await products.removeOption(editingId, optionGroupId);
+      setLinkedOptionGroups(linkedOptionGroups.filter(og => og.id !== optionGroupId));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to remove option group');
     }
   };
 
@@ -224,7 +258,7 @@ export default function Products() {
             )}
             <div className="form-actions">
               <button type="submit">{editingId ? 'Update' : 'Create'}</button>
-              <button type="button" onClick={() => { setShowForm(false); setEditingId(null); setCurrentImages([]); }}>
+              <button type="button" onClick={() => { setShowForm(false); setEditingId(null); setCurrentImages([]); setLinkedOptionGroups([]); }}>
                 Cancel
               </button>
             </div>
@@ -248,6 +282,64 @@ export default function Products() {
                     </div>
                   ))}
                 </div>
+              )}
+            </div>
+          )}
+
+          {editingId && (
+            <div className="form-card" style={{ width: '300px' }}>
+              <h3>Option Groups</h3>
+              <p style={{ fontSize: '0.85rem', color: '#666', marginBottom: '1rem' }}>
+                Link option groups to let customers configure this product.
+              </p>
+
+              {linkedOptionGroups.length > 0 && (
+                <div style={{ marginBottom: '1rem' }}>
+                  <strong style={{ fontSize: '0.85rem' }}>Linked:</strong>
+                  <ul style={{ margin: '0.5rem 0', paddingLeft: '1rem' }}>
+                    {linkedOptionGroups.map((og) => (
+                      <li key={og.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                        <span>{og.name}</span>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveOptionGroup(og.id)}
+                          className="danger"
+                          style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}
+                        >
+                          Remove
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {allOptionGroups.filter(og => !linkedOptionGroups.find(l => l.id === og.id)).length > 0 && (
+                <div>
+                  <strong style={{ fontSize: '0.85rem' }}>Available:</strong>
+                  <ul style={{ margin: '0.5rem 0', paddingLeft: '1rem' }}>
+                    {allOptionGroups
+                      .filter(og => !linkedOptionGroups.find(l => l.id === og.id))
+                      .map((og) => (
+                        <li key={og.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                          <span>{og.name}</span>
+                          <button
+                            type="button"
+                            onClick={() => handleAddOptionGroup(og.id)}
+                            style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}
+                          >
+                            Add
+                          </button>
+                        </li>
+                      ))}
+                  </ul>
+                </div>
+              )}
+
+              {allOptionGroups.length === 0 && (
+                <p style={{ color: '#666', fontSize: '0.85rem' }}>
+                  No option groups created yet. Create some in the Option Groups page first.
+                </p>
               )}
             </div>
           )}

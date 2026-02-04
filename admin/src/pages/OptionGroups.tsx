@@ -11,8 +11,8 @@ export default function OptionGroups() {
   const [editingGroupId, setEditingGroupId] = useState<string | null>(null);
   const [groupForm, setGroupForm] = useState<CreateOptionGroupRequest>({
     name: '',
-    display_name: '',
     type: 'select',
+    required: false,
   });
 
   // Option Value form
@@ -22,19 +22,22 @@ export default function OptionGroups() {
   const [valueForm, setValueForm] = useState<CreateOptionValueRequest>({
     option_group_id: '',
     value: '',
-    display_name: '',
+    label: '',
     price_modifier_pence: 0,
     sort_order: 0,
   });
 
-  // Track option groups in local state
-  // Note: We'd need a GET /api/admin/option-groups endpoint to persist across reloads
   const [groups, setGroups] = useState<OptionGroup[]>([]);
 
   const loadData = async () => {
-    // Option groups don't have a list endpoint yet
-    // For now, groups are only tracked in local state during this session
-    setLoading(false);
+    try {
+      const data = await optionGroups.list();
+      setGroups(data || []);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load option groups');
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -53,7 +56,7 @@ export default function OptionGroups() {
       }
       setShowGroupForm(false);
       setEditingGroupId(null);
-      setGroupForm({ name: '', display_name: '', type: 'select' });
+      setGroupForm({ name: '', type: 'select', required: false });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save');
     }
@@ -62,8 +65,8 @@ export default function OptionGroups() {
   const handleGroupEdit = (group: OptionGroup) => {
     setGroupForm({
       name: group.name,
-      display_name: group.display_name,
       type: group.type,
+      required: group.required,
     });
     setEditingGroupId(group.id);
     setShowGroupForm(true);
@@ -109,7 +112,7 @@ export default function OptionGroups() {
       }
       setShowValueForm(false);
       setEditingValueId(null);
-      setValueForm({ option_group_id: '', value: '', display_name: '', price_modifier_pence: 0, sort_order: 0 });
+      setValueForm({ option_group_id: '', value: '', label: '', price_modifier_pence: 0, sort_order: 0 });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save');
     }
@@ -159,21 +162,11 @@ export default function OptionGroups() {
         <form onSubmit={handleGroupSubmit} className="form-card">
           <h3>{editingGroupId ? 'Edit Option Group' : 'New Option Group'}</h3>
           <label>
-            Internal Name
+            Name
             <input
               type="text"
               value={groupForm.name}
               onChange={(e) => setGroupForm({ ...groupForm, name: e.target.value })}
-              placeholder="e.g., antenna_size"
-              required
-            />
-          </label>
-          <label>
-            Display Name
-            <input
-              type="text"
-              value={groupForm.display_name}
-              onChange={(e) => setGroupForm({ ...groupForm, display_name: e.target.value })}
               placeholder="e.g., Antenna Size"
               required
             />
@@ -188,6 +181,14 @@ export default function OptionGroups() {
               <option value="multiselect">Multi-select</option>
               <option value="text">Text input</option>
             </select>
+          </label>
+          <label className="checkbox-label">
+            <input
+              type="checkbox"
+              checked={groupForm.required}
+              onChange={(e) => setGroupForm({ ...groupForm, required: e.target.checked })}
+            />
+            Required
           </label>
           <div className="form-actions">
             <button type="submit">{editingGroupId ? 'Update' : 'Create'}</button>
@@ -215,8 +216,8 @@ export default function OptionGroups() {
             Display Name
             <input
               type="text"
-              value={valueForm.display_name}
-              onChange={(e) => setValueForm({ ...valueForm, display_name: e.target.value })}
+              value={valueForm.label}
+              onChange={(e) => setValueForm({ ...valueForm, label: e.target.value })}
               placeholder="e.g., 65mm Antenna"
               required
             />
@@ -254,8 +255,8 @@ export default function OptionGroups() {
           <div key={group.id} className="option-group-card">
             <div className="option-group-header">
               <div>
-                <h3>{group.display_name}</h3>
-                <small>Internal: {group.name} | Type: {group.type}</small>
+                <h3>{group.name}</h3>
+                <small>Type: {group.type} | {group.required ? 'Required' : 'Optional'}</small>
               </div>
               <div>
                 <button onClick={() => { setSelectedGroupId(group.id); setShowValueForm(true); }}>
@@ -270,7 +271,7 @@ export default function OptionGroups() {
                 <thead>
                   <tr>
                     <th>Value</th>
-                    <th>Display Name</th>
+                    <th>Label</th>
                     <th>Price Modifier</th>
                     <th>Sort</th>
                     <th>Actions</th>
@@ -280,7 +281,7 @@ export default function OptionGroups() {
                   {group.values.map((val) => (
                     <tr key={val.id}>
                       <td>{val.value}</td>
-                      <td>{val.display_name}</td>
+                      <td>{val.label}</td>
                       <td>{formatPrice(val.price_modifier_pence)}</td>
                       <td>{val.sort_order}</td>
                       <td>
@@ -288,7 +289,7 @@ export default function OptionGroups() {
                           setValueForm({
                             option_group_id: group.id,
                             value: val.value,
-                            display_name: val.display_name,
+                            label: val.label,
                             price_modifier_pence: val.price_modifier_pence,
                             sort_order: val.sort_order,
                           });

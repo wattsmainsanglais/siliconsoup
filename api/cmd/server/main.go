@@ -93,6 +93,7 @@ func main() {
 	admin.Delete("/categories/:id", adminHandler.DeleteCategory)
 
 	// Option Groups
+	admin.Get("/option-groups", adminHandler.ListOptionGroups)
 	admin.Post("/option-groups", adminHandler.CreateOptionGroup)
 	admin.Put("/option-groups/:id", adminHandler.UpdateOptionGroup)
 	admin.Delete("/option-groups/:id", adminHandler.DeleteOptionGroup)
@@ -109,6 +110,7 @@ func main() {
 	admin.Delete("/products/:id", adminHandler.DeleteProduct)
 
 	// Product Options (linking)
+	admin.Get("/products/:id/options", adminHandler.GetProductOptions)
 	admin.Post("/product-options", adminHandler.CreateProductOption)
 	admin.Delete("/product-options/:productId/:optionGroupId", adminHandler.DeleteProductOption)
 
