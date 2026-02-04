@@ -27,6 +27,7 @@ func NewAdminHandler(db *pgxpool.Pool, siteID string, uploadPath string) *AdminH
 }
 
 // UploadImage handles image uploads
+// Optional form fields: product_id (links image to product), alt (image alt text)
 func (h *AdminHandler) UploadImage(c *fiber.Ctx) error {
 	file, err := c.FormFile("image")
 	if err != nil {
@@ -75,10 +76,77 @@ func (h *AdminHandler) UploadImage(c *fiber.Ctx) error {
 		return c.Status(500).JSON(fiber.Map{"error": "Failed to write file"})
 	}
 
+	imagePath := fmt.Sprintf("/uploads/%s/%s", subfolder, filename)
+
+	// If product_id provided, update the product's images array
+	productID := c.FormValue("product_id", "")
+	if productID != "" {
+		altText := c.FormValue("alt", "")
+		ctx := context.Background()
+
+		// Get current images
+		var currentImages json.RawMessage
+		err := h.db.QueryRow(ctx,
+			"SELECT COALESCE(images, '[]'::jsonb) FROM products WHERE id = $1 AND site_id = $2",
+			productID, h.siteID,
+		).Scan(&currentImages)
+
+		if err != nil {
+			// Product not found, but file was saved - return success with warning
+			return c.Status(201).JSON(fiber.Map{
+				"filename": filename,
+				"folder":   subfolder,
+				"path":     imagePath,
+				"warning":  "Product not found, image saved but not linked",
+			})
+		}
+
+		// Parse existing images
+		var images []map[string]interface{}
+		if err := json.Unmarshal(currentImages, &images); err != nil {
+			images = []map[string]interface{}{}
+		}
+
+		// Determine sort order (append to end)
+		sortOrder := len(images) + 1
+
+		// Add new image
+		newImage := map[string]interface{}{
+			"url":        imagePath,
+			"alt":        altText,
+			"sort_order": sortOrder,
+		}
+		images = append(images, newImage)
+
+		// Update product
+		updatedImages, _ := json.Marshal(images)
+		_, err = h.db.Exec(ctx,
+			"UPDATE products SET images = $1, updated_at = NOW() WHERE id = $2 AND site_id = $3",
+			updatedImages, productID, h.siteID,
+		)
+
+		if err != nil {
+			return c.Status(201).JSON(fiber.Map{
+				"filename": filename,
+				"folder":   subfolder,
+				"path":     imagePath,
+				"warning":  "Image saved but failed to update product: " + err.Error(),
+			})
+		}
+
+		return c.Status(201).JSON(fiber.Map{
+			"filename":   filename,
+			"folder":     subfolder,
+			"path":       imagePath,
+			"product_id": productID,
+			"images":     images,
+		})
+	}
+
 	return c.Status(201).JSON(fiber.Map{
 		"filename": filename,
 		"folder":   subfolder,
-		"path":     fmt.Sprintf("/uploads/%s/%s", subfolder, filename),
+		"path":     imagePath,
 	})
 }
 
