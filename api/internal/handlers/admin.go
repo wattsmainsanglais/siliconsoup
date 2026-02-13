@@ -579,10 +579,14 @@ func (h *AdminHandler) UpdateProduct(c *fiber.Ctx) error {
 		return c.Status(400).JSON(fiber.Map{"error": "Invalid request body"})
 	}
 
-	// Convert images to JSON
-	imagesJSON, err := json.Marshal(req.Images)
-	if err != nil {
-		return c.Status(400).JSON(fiber.Map{"error": "Invalid images format"})
+	// Only marshal images if provided, otherwise pass nil to preserve existing
+	var imagesJSON interface{}
+	if req.Images != nil {
+		j, err := json.Marshal(req.Images)
+		if err != nil {
+			return c.Status(400).JSON(fiber.Map{"error": "Invalid images format"})
+		}
+		imagesJSON = j
 	}
 
 	ctx := context.Background()
@@ -592,12 +596,12 @@ func (h *AdminHandler) UpdateProduct(c *fiber.Ctx) error {
 		SET category_id = $1,
 			slug = COALESCE(NULLIF($2, ''), slug),
 			name = COALESCE(NULLIF($3, ''), name),
-			description = $4,
-			short_description = $5,
+			description = COALESCE($4, description),
+			short_description = COALESCE($5, short_description),
 			base_price_pence = $6,
-			sku = $7,
-			weight_grams = $8,
-			images = $9,
+			sku = COALESCE($7, sku),
+			weight_grams = COALESCE($8, weight_grams),
+			images = COALESCE($9, images),
 			status = COALESCE(NULLIF($10, ''), status),
 			featured = $11,
 			updated_at = NOW()
@@ -607,6 +611,7 @@ func (h *AdminHandler) UpdateProduct(c *fiber.Ctx) error {
 	`
 
 	var p models.Product
+	var err error
 	err = h.db.QueryRow(ctx, query,
 		req.CategoryID, req.Slug, req.Name, req.Description, req.ShortDescription,
 		req.BasePricePence, req.SKU, req.WeightGrams, imagesJSON, req.Status, req.Featured,
