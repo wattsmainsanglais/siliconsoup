@@ -15,6 +15,7 @@ export default function ProductDetail() {
   const [selectedOptions, setSelectedOptions] = useState<Map<string, OptionValue>>(new Map())
   const [quantity, setQuantity] = useState(1)
   const [added, setAdded] = useState(false)
+  const [imgError, setImgError] = useState(false)
 
   useEffect(() => {
     if (!slug) return
@@ -103,11 +104,12 @@ export default function ProductDetail() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
         {/* Image */}
         <div className="bg-grey-bg rounded-lg overflow-hidden aspect-square">
-          {mainImage ? (
+          {mainImage && !imgError ? (
             <img
               src={imageUrl(mainImage.url)}
               alt={mainImage.alt || product.name}
               className="w-full h-full object-cover"
+              onError={() => setImgError(true)}
             />
           ) : (
             <div className="w-full h-full flex items-center justify-center text-grey-text">
