@@ -21,19 +21,21 @@ FROM alpine:3.19
 
 WORKDIR /app
 
-# Install ca-certificates for HTTPS
-RUN apk --no-cache add ca-certificates tzdata
+# Install ca-certificates, su-exec for dropping privileges
+RUN apk --no-cache add ca-certificates tzdata su-exec
 
-# Copy binary and migrations
+# Copy binary, migrations, and entrypoint
 COPY --from=builder /app/server .
 COPY --from=builder /app/migrations ./migrations
+COPY entrypoint.sh .
+RUN chmod +x entrypoint.sh
 
 # Create non-root user and uploads directory
 RUN adduser -D -g '' appuser && \
     mkdir -p /app/uploads && \
     chown -R appuser:appuser /app/uploads
-USER appuser
 
 EXPOSE 8080
 
-CMD ["./server"]
+# Start as root, entrypoint fixes volume permissions then drops to appuser
+CMD ["./entrypoint.sh"]
