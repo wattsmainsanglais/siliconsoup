@@ -151,7 +151,7 @@ export const products = {
     }),
 };
 
-// Images
+// Images (legacy product upload)
 export const images = {
   upload: async (productId: string, file: File): Promise<import('./types').ProductImage> => {
     const formData = new FormData();
@@ -170,6 +170,37 @@ export const images = {
 
     return response.json();
   },
+};
+
+// Image Store (central)
+interface ImageStoreResponse {
+  images: import('./types').StoreImage[];
+  count: number;
+}
+
+export const imageStore = {
+  list: async () => {
+    const res = await request<ImageStoreResponse>('/api/admin/images');
+    return res.images;
+  },
+  upload: async (file: File): Promise<import('./types').StoreImage> => {
+    const formData = new FormData();
+    formData.append('image', file);
+
+    const response = await fetch(`${API_BASE}/api/admin/images`, {
+      method: 'POST',
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const error = await response.text();
+      throw new Error(error || `HTTP ${response.status}`);
+    }
+
+    return response.json();
+  },
+  delete: (id: string) =>
+    request<void>(`/api/admin/images/${id}`, { method: 'DELETE' }),
 };
 
 // Shipping Zones

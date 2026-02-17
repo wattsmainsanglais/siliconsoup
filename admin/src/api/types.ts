@@ -32,6 +32,7 @@ export interface OptionValue {
   price_modifier_pence: number;
   sort_order: number;
   is_default: boolean;
+  image?: string | null;
   created_at: string;
   updated_at?: string;
 }
@@ -77,6 +78,15 @@ export interface ShippingZone {
   updated_at?: string;
 }
 
+export interface StoreImage {
+  id: string;
+  filename: string;
+  url: string;
+  alt: string;
+  size_bytes?: number;
+  created_at: string;
+}
+
 // Request types
 export interface CreateCategoryRequest {
   name: string;
@@ -98,6 +108,7 @@ export interface CreateOptionValueRequest {
   label: string;
   price_modifier_pence?: number;
   sort_order?: number;
+  image?: string | null;
 }
 
 export interface CreateProductRequest {

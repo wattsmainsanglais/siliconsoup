@@ -128,7 +128,7 @@ func (h *ProductHandler) GetProduct(c *fiber.Ctx) error {
 	// Get option values for each group
 	for i := range optionGroups {
 		valuesQuery := `
-			SELECT id, option_group_id, value, label, price_modifier_pence, sort_order, is_default, created_at
+			SELECT id, option_group_id, value, label, price_modifier_pence, sort_order, is_default, image, created_at
 			FROM option_values
 			WHERE option_group_id = $1
 			ORDER BY sort_order
@@ -142,7 +142,7 @@ func (h *ProductHandler) GetProduct(c *fiber.Ctx) error {
 		for vRows.Next() {
 			var v models.OptionValue
 			err := vRows.Scan(&v.ID, &v.OptionGroupID, &v.Value, &v.Label,
-				&v.PriceModifierPence, &v.SortOrder, &v.IsDefault, &v.CreatedAt)
+				&v.PriceModifierPence, &v.SortOrder, &v.IsDefault, &v.Image, &v.CreatedAt)
 			if err != nil {
 				continue
 			}

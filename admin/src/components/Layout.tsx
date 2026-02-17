@@ -19,6 +19,9 @@ export default function Layout() {
             <NavLink to="/option-groups">Option Groups</NavLink>
           </li>
           <li>
+            <NavLink to="/images">Images</NavLink>
+          </li>
+          <li>
             <NavLink to="/shipping">Shipping Zones</NavLink>
           </li>
         </ul>

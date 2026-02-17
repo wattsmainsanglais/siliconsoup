@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
-import { products, categories, images, optionGroups } from '../api/client';
-import type { Product, Category, CreateProductRequest, ProductImage, OptionGroup } from '../api/types';
+import { products, categories, optionGroups } from '../api/client';
+import type { Product, Category, CreateProductRequest, ProductImage, OptionGroup, StoreImage } from '../api/types';
+import ImagePickerModal from '../components/ImagePickerModal';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8080';
 
@@ -20,10 +21,10 @@ export default function Products() {
     base_price_pence: 0,
     status: 'draft',
   });
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [currentImages, setCurrentImages] = useState<ProductImage[]>([]);
   const [allOptionGroups, setAllOptionGroups] = useState<OptionGroup[]>([]);
   const [linkedOptionGroups, setLinkedOptionGroups] = useState<OptionGroup[]>([]);
+  const [showImagePicker, setShowImagePicker] = useState(false);
 
   const loadData = async () => {
     try {
@@ -51,28 +52,47 @@ export default function Products() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      let product: Product;
-      if (editingId) {
-        product = await products.update(editingId, form);
-      } else {
-        product = await products.create(form);
-      }
+      // Build images array from currentImages
+      const imagesPayload = currentImages.map((img, idx) => ({
+        url: img.url,
+        alt: img.alt || '',
+        sort_order: idx + 1,
+      }));
 
-      // Upload image if selected
-      if (selectedFile) {
-        await images.upload(product.id, selectedFile);
+      const payload = { ...form, images: imagesPayload };
+
+      if (editingId) {
+        await products.update(editingId, payload);
+      } else {
+        await products.create(payload);
       }
 
       setShowForm(false);
       setEditingId(null);
       setForm({ name: '', slug: '', short_description: '', description: '', category_id: null, base_price_pence: 0, status: 'draft' });
-      setSelectedFile(null);
       setCurrentImages([]);
       setLinkedOptionGroups([]);
       loadData();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save');
     }
+  };
+
+  const handleImagesSelected = (selected: StoreImage[]) => {
+    const newImages: ProductImage[] = selected.map((img, idx) => ({
+      url: img.url,
+      alt: img.alt || '',
+      sort_order: currentImages.length + idx + 1,
+    }));
+    // Merge: keep existing that aren't in new selection, add new ones
+    const existingUrls = new Set(currentImages.map(i => i.url));
+    const toAdd = newImages.filter(i => !existingUrls.has(i.url));
+    setCurrentImages([...currentImages, ...toAdd]);
+    setShowImagePicker(false);
+  };
+
+  const handleRemoveImage = (url: string) => {
+    setCurrentImages(currentImages.filter(img => img.url !== url));
   };
 
   const handleEdit = async (prod: Product) => {
@@ -221,70 +241,53 @@ export default function Products() {
                 <option value="archived">Archived</option>
               </select>
             </label>
-            <label>
-              Add Image
-              <input
-                type="file"
-                accept="image/*"
-                onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
-              />
-            </label>
-            {selectedFile && (
-              <div style={{ marginTop: '0.5rem', display: 'flex', alignItems: 'flex-start', gap: '0.5rem' }}>
-                <img
-                  src={URL.createObjectURL(selectedFile)}
-                  alt="Preview"
-                  style={{ maxWidth: '150px', maxHeight: '150px', objectFit: 'contain' }}
-                />
-                <button
-                  type="button"
-                  onClick={() => setSelectedFile(null)}
-                  style={{
-                    background: '#dc3545',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '50%',
-                    width: '24px',
-                    height: '24px',
-                    cursor: 'pointer',
-                    fontSize: '14px',
-                    lineHeight: '1',
-                  }}
-                  title="Remove"
-                >
-                  ×
-                </button>
-              </div>
-            )}
-            <div className="form-actions">
-              <button type="submit">{editingId ? 'Update' : 'Create'}</button>
-              <button type="button" onClick={() => { setShowForm(false); setEditingId(null); setCurrentImages([]); setLinkedOptionGroups([]); }}>
-                Cancel
+            <div>
+              <label style={{ display: 'block', marginBottom: '0.25rem' }}>Images</label>
+              <button type="button" onClick={() => setShowImagePicker(true)}>
+                Add Images
               </button>
-            </div>
-          </form>
-
-          {editingId && (
-            <div className="form-card" style={{ width: '300px' }}>
-              <h3>Current Images</h3>
-              {currentImages.length === 0 ? (
-                <p style={{ color: '#666' }}>No images yet</p>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              {currentImages.length > 0 && (
+                <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginTop: '0.5rem' }}>
                   {currentImages.map((img, idx) => (
-                    <div key={idx} style={{ border: '1px solid #ddd', padding: '0.5rem', borderRadius: '4px' }}>
+                    <div key={idx} style={{ position: 'relative' }}>
                       <img
                         src={`${API_BASE}${img.url}`}
-                        alt={img.alt || `Product image ${idx + 1}`}
-                        style={{ width: '100%', maxHeight: '150px', objectFit: 'contain' }}
+                        alt={img.alt || ''}
+                        style={{ width: '80px', height: '80px', objectFit: 'cover', borderRadius: '4px', border: '1px solid #ddd' }}
                       />
-                      {img.alt && <small style={{ display: 'block', marginTop: '0.25rem' }}>{img.alt}</small>}
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveImage(img.url)}
+                        style={{
+                          position: 'absolute',
+                          top: '-6px',
+                          right: '-6px',
+                          background: '#dc3545',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '50%',
+                          width: '20px',
+                          height: '20px',
+                          cursor: 'pointer',
+                          fontSize: '12px',
+                          lineHeight: '1',
+                        }}
+                        title="Remove"
+                      >
+                        ×
+                      </button>
                     </div>
                   ))}
                 </div>
               )}
             </div>
-          )}
+            <div className="form-actions">
+              <button type="submit">{editingId ? 'Update' : 'Create'}</button>
+              <button type="button" onClick={() => { setShowForm(false); setEditingId(null); setCurrentImages([]); setLinkedOptionGroups([]); setShowImagePicker(false); }}>
+                Cancel
+              </button>
+            </div>
+          </form>
 
           {editingId && (
             <div className="form-card" style={{ width: '300px' }}>
@@ -378,6 +381,14 @@ export default function Products() {
           )}
         </tbody>
       </table>
+
+      <ImagePickerModal
+        open={showImagePicker}
+        multi
+        selected={currentImages.map(i => i.url)}
+        onConfirm={handleImagesSelected}
+        onClose={() => setShowImagePicker(false)}
+      />
     </div>
   );
 }

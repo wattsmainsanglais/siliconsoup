@@ -91,6 +91,7 @@ type OptionValue struct {
 	PriceModifierPence int       `json:"price_modifier_pence"`
 	SortOrder          int       `json:"sort_order"`
 	IsDefault          bool      `json:"is_default"`
+	Image              *string   `json:"image,omitempty"`
 	CreatedAt          time.Time `json:"created_at"`
 }
 
@@ -152,9 +153,19 @@ type QuoteRequest struct {
 	UpdatedAt        time.Time `json:"updated_at"`
 }
 
+// Image represents an image in the central image store
+type Image struct {
+	ID        string    `json:"id"`
+	Filename  string    `json:"filename"`
+	URL       string    `json:"url"`
+	Alt       string    `json:"alt"`
+	SizeBytes *int      `json:"size_bytes"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
 // ProductImage represents an image attached to a product
 type ProductImage struct {
-	Filename  string `json:"filename"`
+	URL       string `json:"url"`
 	Alt       string `json:"alt"`
 	SortOrder int    `json:"sort_order"`
 }
@@ -227,12 +238,13 @@ type CreateOptionGroupRequest struct {
 }
 
 type CreateOptionValueRequest struct {
-	OptionGroupID      string `json:"option_group_id"`
-	Value              string `json:"value"`
-	Label              string `json:"label"`
-	PriceModifierPence int    `json:"price_modifier_pence"`
-	SortOrder          int    `json:"sort_order"`
-	IsDefault          bool   `json:"is_default"`
+	OptionGroupID      string  `json:"option_group_id"`
+	Value              string  `json:"value"`
+	Label              string  `json:"label"`
+	PriceModifierPence int     `json:"price_modifier_pence"`
+	SortOrder          int     `json:"sort_order"`
+	IsDefault          bool    `json:"is_default"`
+	Image              *string `json:"image,omitempty"`
 }
 
 type CreateProductRequest struct {

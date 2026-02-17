@@ -150,6 +150,141 @@ func (h *AdminHandler) UploadImage(c *fiber.Ctx) error {
 	})
 }
 
+// ============ IMAGE STORE HANDLERS ============
+
+// ListImages returns all images in the store
+func (h *AdminHandler) ListImages(c *fiber.Ctx) error {
+	ctx := context.Background()
+
+	rows, err := h.db.Query(ctx,
+		"SELECT id, filename, url, COALESCE(alt, ''), size_bytes, created_at FROM images ORDER BY created_at DESC")
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "Failed to fetch images"})
+	}
+	defer rows.Close()
+
+	var images []models.Image
+	for rows.Next() {
+		var img models.Image
+		if err := rows.Scan(&img.ID, &img.Filename, &img.URL, &img.Alt, &img.SizeBytes, &img.CreatedAt); err != nil {
+			continue
+		}
+		images = append(images, img)
+	}
+
+	if images == nil {
+		images = []models.Image{}
+	}
+
+	return c.JSON(fiber.Map{
+		"images": images,
+		"count":  len(images),
+	})
+}
+
+// UploadToStore uploads an image to the central store
+func (h *AdminHandler) UploadToStore(c *fiber.Ctx) error {
+	file, err := c.FormFile("image")
+	if err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": "No image provided"})
+	}
+
+	// Validate file type
+	ext := strings.ToLower(filepath.Ext(file.Filename))
+	allowedExts := map[string]bool{".jpg": true, ".jpeg": true, ".png": true, ".webp": true, ".gif": true}
+	if !allowedExts[ext] {
+		return c.Status(400).JSON(fiber.Map{"error": "Invalid file type. Allowed: jpg, jpeg, png, webp, gif"})
+	}
+
+	// Validate file size (max 5MB)
+	if file.Size > 5*1024*1024 {
+		return c.Status(400).JSON(fiber.Map{"error": "File too large. Max 5MB"})
+	}
+
+	uploadDir := filepath.Join(h.uploadPath, "products")
+	if err := os.MkdirAll(uploadDir, 0755); err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "Failed to create upload directory"})
+	}
+
+	filename := fmt.Sprintf("%s-%d%s", uuid.New().String()[:8], time.Now().Unix(), ext)
+	destPath := filepath.Join(uploadDir, filename)
+
+	src, err := file.Open()
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "Failed to open uploaded file"})
+	}
+	defer src.Close()
+
+	dst, err := os.Create(destPath)
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "Failed to save file"})
+	}
+	defer dst.Close()
+
+	if _, err := io.Copy(dst, src); err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "Failed to write file"})
+	}
+
+	imagePath := fmt.Sprintf("/uploads/products/%s", filename)
+	sizeBytes := int(file.Size)
+	alt := c.FormValue("alt", "")
+
+	ctx := context.Background()
+	var img models.Image
+	err = h.db.QueryRow(ctx,
+		`INSERT INTO images (filename, url, alt, size_bytes) VALUES ($1, $2, $3, $4)
+		 RETURNING id, filename, url, COALESCE(alt, ''), size_bytes, created_at`,
+		filename, imagePath, alt, sizeBytes,
+	).Scan(&img.ID, &img.Filename, &img.URL, &img.Alt, &img.SizeBytes, &img.CreatedAt)
+
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "Failed to save image record", "details": err.Error()})
+	}
+
+	return c.Status(201).JSON(img)
+}
+
+// DeleteImage removes an image from the store, disk, and any product/option references
+func (h *AdminHandler) DeleteImage(c *fiber.Ctx) error {
+	id := c.Params("id")
+	ctx := context.Background()
+
+	// Get image record
+	var url, filename string
+	err := h.db.QueryRow(ctx, "SELECT url, filename FROM images WHERE id = $1", id).Scan(&url, &filename)
+	if err != nil {
+		return c.Status(404).JSON(fiber.Map{"error": "Image not found"})
+	}
+
+	// Delete from images table
+	_, err = h.db.Exec(ctx, "DELETE FROM images WHERE id = $1", id)
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "Failed to delete image record"})
+	}
+
+	// Remove from any products.images JSONB arrays that reference this URL
+	_, _ = h.db.Exec(ctx, `
+		UPDATE products
+		SET images = (
+			SELECT COALESCE(jsonb_agg(elem), '[]'::jsonb)
+			FROM jsonb_array_elements(images) AS elem
+			WHERE elem->>'url' != $1
+		),
+		updated_at = NOW()
+		WHERE images @> jsonb_build_array(jsonb_build_object('url', $1::text))
+	`, url)
+
+	// Clear any option_values.image fields that reference this URL
+	_, _ = h.db.Exec(ctx, "UPDATE option_values SET image = NULL WHERE image = $1", url)
+
+	// Delete file from disk
+	relativePath := strings.TrimPrefix(url, "/uploads/")
+	filePath := filepath.Join(h.uploadPath, relativePath)
+	os.Remove(filePath)
+
+	return c.Status(204).Send(nil)
+}
+
 // ListProducts returns ALL products for admin (including drafts/archived)
 func (h *AdminHandler) ListProducts(c *fiber.Ctx) error {
 	ctx := context.Background()
@@ -270,7 +405,7 @@ func (h *AdminHandler) ListOptionGroups(c *fiber.Ctx) error {
 	// Fetch values for each group
 	for i := range groups {
 		valuesQuery := `
-			SELECT id, option_group_id, value, label, price_modifier_pence, sort_order, is_default, created_at
+			SELECT id, option_group_id, value, label, price_modifier_pence, sort_order, is_default, image, created_at
 			FROM option_values
 			WHERE option_group_id = $1
 			ORDER BY sort_order, label
@@ -283,7 +418,7 @@ func (h *AdminHandler) ListOptionGroups(c *fiber.Ctx) error {
 		var values []models.OptionValue
 		for valueRows.Next() {
 			var ov models.OptionValue
-			valueRows.Scan(&ov.ID, &ov.OptionGroupID, &ov.Value, &ov.Label, &ov.PriceModifierPence, &ov.SortOrder, &ov.IsDefault, &ov.CreatedAt)
+			valueRows.Scan(&ov.ID, &ov.OptionGroupID, &ov.Value, &ov.Label, &ov.PriceModifierPence, &ov.SortOrder, &ov.IsDefault, &ov.Image, &ov.CreatedAt)
 			values = append(values, ov)
 		}
 		valueRows.Close()
@@ -349,15 +484,15 @@ func (h *AdminHandler) CreateOptionValue(c *fiber.Ctx) error {
 	id := uuid.New().String()
 
 	query := `
-		INSERT INTO option_values (id, option_group_id, value, label, price_modifier_pence, sort_order, is_default)
-		VALUES ($1, $2, $3, $4, $5, $6, $7)
-		RETURNING id, option_group_id, value, label, price_modifier_pence, sort_order, is_default, created_at
+		INSERT INTO option_values (id, option_group_id, value, label, price_modifier_pence, sort_order, is_default, image)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+		RETURNING id, option_group_id, value, label, price_modifier_pence, sort_order, is_default, image, created_at
 	`
 
 	var ov models.OptionValue
 	err := h.db.QueryRow(ctx, query,
-		id, req.OptionGroupID, req.Value, req.Label, req.PriceModifierPence, req.SortOrder, req.IsDefault,
-	).Scan(&ov.ID, &ov.OptionGroupID, &ov.Value, &ov.Label, &ov.PriceModifierPence, &ov.SortOrder, &ov.IsDefault, &ov.CreatedAt)
+		id, req.OptionGroupID, req.Value, req.Label, req.PriceModifierPence, req.SortOrder, req.IsDefault, req.Image,
+	).Scan(&ov.ID, &ov.OptionGroupID, &ov.Value, &ov.Label, &ov.PriceModifierPence, &ov.SortOrder, &ov.IsDefault, &ov.Image, &ov.CreatedAt)
 
 	if err != nil {
 		if strings.Contains(err.Error(), "foreign key") {
@@ -545,21 +680,28 @@ func (h *AdminHandler) UpdateOptionValue(c *fiber.Ctx) error {
 
 	ctx := context.Background()
 
+	// Determine image value for update: if provided use it, otherwise preserve existing
+	var imageVal *string
+	if req.Image != nil {
+		imageVal = req.Image
+	}
+
 	query := `
 		UPDATE option_values
 		SET value = COALESCE(NULLIF($1, ''), value),
 			label = COALESCE(NULLIF($2, ''), label),
 			price_modifier_pence = $3,
 			sort_order = $4,
-			is_default = $5
-		WHERE id = $6
-		RETURNING id, option_group_id, value, label, price_modifier_pence, sort_order, is_default, created_at
+			is_default = $5,
+			image = COALESCE($6, image)
+		WHERE id = $7
+		RETURNING id, option_group_id, value, label, price_modifier_pence, sort_order, is_default, image, created_at
 	`
 
 	var ov models.OptionValue
 	err := h.db.QueryRow(ctx, query,
-		req.Value, req.Label, req.PriceModifierPence, req.SortOrder, req.IsDefault, id,
-	).Scan(&ov.ID, &ov.OptionGroupID, &ov.Value, &ov.Label, &ov.PriceModifierPence, &ov.SortOrder, &ov.IsDefault, &ov.CreatedAt)
+		req.Value, req.Label, req.PriceModifierPence, req.SortOrder, req.IsDefault, imageVal, id,
+	).Scan(&ov.ID, &ov.OptionGroupID, &ov.Value, &ov.Label, &ov.PriceModifierPence, &ov.SortOrder, &ov.IsDefault, &ov.Image, &ov.CreatedAt)
 
 	if err != nil {
 		if strings.Contains(err.Error(), "no rows") {

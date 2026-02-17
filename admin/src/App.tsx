@@ -5,6 +5,7 @@ import Categories from './pages/Categories';
 import Products from './pages/Products';
 import OptionGroups from './pages/OptionGroups';
 import ShippingZones from './pages/ShippingZones';
+import Images from './pages/Images';
 import './App.css';
 
 function App() {
@@ -16,6 +17,7 @@ function App() {
           <Route path="categories" element={<Categories />} />
           <Route path="products" element={<Products />} />
           <Route path="option-groups" element={<OptionGroups />} />
+          <Route path="images" element={<Images />} />
           <Route path="shipping" element={<ShippingZones />} />
         </Route>
       </Routes>

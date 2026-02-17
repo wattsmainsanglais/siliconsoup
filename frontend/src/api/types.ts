@@ -24,6 +24,7 @@ export interface OptionValue {
   price_modifier_pence: number
   sort_order: number
   is_default: boolean
+  image?: string
 }
 
 export interface Product {

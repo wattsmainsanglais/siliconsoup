@@ -16,6 +16,7 @@ export default function ProductDetail() {
   const [quantity, setQuantity] = useState(1)
   const [added, setAdded] = useState(false)
   const [imgError, setImgError] = useState(false)
+  const [activeImageIndex, setActiveImageIndex] = useState(0)
 
   useEffect(() => {
     if (!slug) return
@@ -82,7 +83,9 @@ export default function ProductDetail() {
     setTimeout(() => setAdded(false), 2000)
   }
 
-  const mainImage = product.images?.[0]
+  const images = product.images ?? []
+  const mainImage = images[activeImageIndex] ?? images[0]
+  const hasMultipleImages = images.length > 1
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-8">
@@ -102,20 +105,87 @@ export default function ProductDetail() {
       </nav>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
-        {/* Image */}
-        <div className="bg-grey-bg rounded-lg overflow-hidden aspect-square">
-          {mainImage && !imgError ? (
-            <img
-              src={imageUrl(mainImage.url)}
-              alt={mainImage.alt || product.name}
-              className="w-full h-full object-cover"
-              onError={() => setImgError(true)}
-            />
-          ) : (
-            <div className="w-full h-full flex items-center justify-center text-grey-text">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-24 w-24" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-              </svg>
+        {/* Image Gallery */}
+        <div>
+          <div className="flex gap-3">
+            {/* Thumbnail strip */}
+            {hasMultipleImages && (
+              <div className="flex flex-col gap-2 shrink-0">
+                {images.map((img, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => { setActiveImageIndex(idx); setImgError(false) }}
+                    className={`w-16 h-16 rounded-lg overflow-hidden border-2 transition-colors ${
+                      idx === activeImageIndex
+                        ? 'border-primary'
+                        : 'border-gray-200 hover:border-gray-400'
+                    }`}
+                  >
+                    <img
+                      src={imageUrl(img.url)}
+                      alt={img.alt || `${product.name} ${idx + 1}`}
+                      className="w-full h-full object-cover"
+                    />
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* Main image */}
+            <div className="bg-grey-bg rounded-lg overflow-hidden aspect-square flex-1">
+              {mainImage && !imgError ? (
+                <img
+                  src={imageUrl(mainImage.url)}
+                  alt={mainImage.alt || product.name}
+                  className="w-full h-full object-cover"
+                  onError={() => setImgError(true)}
+                />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center text-grey-text">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-24 w-24" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Selected Options Summary */}
+          {selectedOptions.size > 0 && (
+            <div className="mt-4">
+              <h3 className="text-sm font-medium text-dark mb-2">Selected Options</h3>
+              <div className="flex flex-wrap gap-2">
+                {product.option_groups?.map((group) => {
+                  const selected = selectedOptions.get(group.id)
+                  if (!selected) return null
+                  return (
+                    <div
+                      key={group.id}
+                      className="flex items-center gap-2 bg-grey-bg rounded-lg px-3 py-2 text-sm"
+                    >
+                      {selected.image && (
+                        <img
+                          src={imageUrl(selected.image)}
+                          alt={selected.label}
+                          className="w-10 h-10 rounded object-cover"
+                        />
+                      )}
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-green-600 shrink-0" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                      </svg>
+                      <div>
+                        <span className="text-grey-text">{group.name}:</span>{' '}
+                        <span className="text-dark font-medium">{selected.label}</span>
+                        {selected.price_modifier_pence !== 0 && (
+                          <span className="text-primary ml-1">
+                            (+{formatPrice(selected.price_modifier_pence)})
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
             </div>
           )}
         </div>

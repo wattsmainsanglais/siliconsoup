@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react';
 import { optionGroups, optionValues } from '../api/client';
-import type { OptionGroup, CreateOptionGroupRequest, CreateOptionValueRequest } from '../api/types';
+import type { OptionGroup, CreateOptionGroupRequest, CreateOptionValueRequest, StoreImage } from '../api/types';
+import ImagePickerModal from '../components/ImagePickerModal';
+
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8080';
 
 export default function OptionGroups() {
   const [loading, setLoading] = useState(true);
@@ -25,9 +28,11 @@ export default function OptionGroups() {
     label: '',
     price_modifier_pence: 0,
     sort_order: 0,
+    image: '',
   });
 
   const [groups, setGroups] = useState<OptionGroup[]>([]);
+  const [showImagePicker, setShowImagePicker] = useState(false);
 
   const loadData = async () => {
     try {
@@ -112,7 +117,7 @@ export default function OptionGroups() {
       }
       setShowValueForm(false);
       setEditingValueId(null);
-      setValueForm({ option_group_id: '', value: '', label: '', price_modifier_pence: 0, sort_order: 0 });
+      setValueForm({ option_group_id: '', value: '', label: '', price_modifier_pence: 0, sort_order: 0, image: '' });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save');
     }
@@ -231,6 +236,39 @@ export default function OptionGroups() {
             />
             <small>e.g., 600 = +£6.00, -200 = -£2.00</small>
           </label>
+          <div>
+            <label style={{ display: 'block', marginBottom: '0.25rem' }}>Image (optional)</label>
+            <button type="button" onClick={() => setShowImagePicker(true)}>
+              {valueForm.image ? 'Change Image' : 'Select Image'}
+            </button>
+            {valueForm.image && (
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem', marginTop: '0.5rem' }}>
+                <img
+                  src={`${API_BASE}${valueForm.image}`}
+                  alt=""
+                  style={{ width: '80px', height: '80px', objectFit: 'cover', borderRadius: '4px', border: '1px solid #ddd' }}
+                />
+                <button
+                  type="button"
+                  onClick={() => setValueForm({ ...valueForm, image: null })}
+                  style={{
+                    background: '#dc3545',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '50%',
+                    width: '20px',
+                    height: '20px',
+                    cursor: 'pointer',
+                    fontSize: '12px',
+                    lineHeight: '1',
+                  }}
+                  title="Clear"
+                >
+                  ×
+                </button>
+              </div>
+            )}
+          </div>
           <label>
             Sort Order
             <input
@@ -273,6 +311,7 @@ export default function OptionGroups() {
                     <th>Value</th>
                     <th>Label</th>
                     <th>Price Modifier</th>
+                    <th>Image</th>
                     <th>Sort</th>
                     <th>Actions</th>
                   </tr>
@@ -283,6 +322,7 @@ export default function OptionGroups() {
                       <td>{val.value}</td>
                       <td>{val.label}</td>
                       <td>{formatPrice(val.price_modifier_pence)}</td>
+                      <td>{val.image ? <img src={`${API_BASE}${val.image}`} alt="" style={{ width: '40px', height: '40px', objectFit: 'cover', borderRadius: '4px' }} /> : '-'}</td>
                       <td>{val.sort_order}</td>
                       <td>
                         <button onClick={() => {
@@ -292,6 +332,7 @@ export default function OptionGroups() {
                             label: val.label,
                             price_modifier_pence: val.price_modifier_pence,
                             sort_order: val.sort_order,
+                            image: val.image || '',
                           });
                           setEditingValueId(val.id);
                           setSelectedGroupId(group.id);
@@ -309,6 +350,19 @@ export default function OptionGroups() {
           </div>
         ))
       )}
+
+      <ImagePickerModal
+        open={showImagePicker}
+        multi={false}
+        selected={valueForm.image ? [valueForm.image] : []}
+        onConfirm={(selected: StoreImage[]) => {
+          if (selected.length > 0) {
+            setValueForm({ ...valueForm, image: selected[0].url });
+          }
+          setShowImagePicker(false);
+        }}
+        onClose={() => setShowImagePicker(false)}
+      />
     </div>
   );
 }

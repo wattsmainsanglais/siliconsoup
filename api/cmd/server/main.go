@@ -87,6 +87,11 @@ func main() {
 	admin := api.Group("/admin")
 	admin.Post("/upload", adminHandler.UploadImage)
 
+	// Image Store
+	admin.Get("/images", adminHandler.ListImages)
+	admin.Post("/images", adminHandler.UploadToStore)
+	admin.Delete("/images/:id", adminHandler.DeleteImage)
+
 	// Categories
 	admin.Post("/categories", adminHandler.CreateCategory)
 	admin.Put("/categories/:id", adminHandler.UpdateCategory)
