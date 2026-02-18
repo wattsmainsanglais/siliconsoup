@@ -1,6 +1,6 @@
 import type { Product, Category, ShippingZone } from './types'
 
-const API_BASE = import.meta.env.VITE_API_URL || 'https://siliconsoup-production.up.railway.app'
+const API_BASE = import.meta.env.VITE_API_URL
 
 export function imageUrl(path: string): string {
   if (!path) return ''

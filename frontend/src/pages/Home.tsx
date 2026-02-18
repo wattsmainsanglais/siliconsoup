@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { products, categories as categoriesApi } from '../api/client'
 import type { Product, Category } from '../api/types'
@@ -17,32 +17,22 @@ import {
   ShieldIcon,
 } from '../components/icons'
 
-const CATEGORIES = [
-  {
-    icon: <SignalBarsIcon />,
-    title: 'RFID Solutions',
-    description: 'Complete RFID systems, readers, and modules for access control and tracking applications',
-    to: '/shop',
-  },
-  {
-    icon: <WifiIcon />,
-    title: 'NFC & RFID Tags',
-    description: 'High-quality NFC tags, RFID cards, and stickers for various frequency ranges and applications',
-    to: '/shop',
-  },
-  {
-    icon: <CircuitIcon />,
-    title: 'Breakout Boards',
-    description: 'GPIO expansion boards, HATs, and development boards for Raspberry Pi and Arduino projects',
-    to: '/shop',
-  },
-  {
-    icon: <AntennaIcon />,
-    title: 'Antennas',
-    description: 'High-performance UHF and HF antennas for extended range and reliable signal transmission',
-    to: '/shop',
-  },
-]
+const CATEGORY_ICONS: Record<string, React.ReactNode> = {
+  'rfid-readers': <SignalBarsIcon />,
+  'rfid-solutions': <SignalBarsIcon />,
+  'nfc-rfid': <WifiIcon />,
+  'nfc': <WifiIcon />,
+  'rfid-tags': <WifiIcon />,
+  'breakout-boards': <CircuitIcon />,
+  'break-out-boards': <CircuitIcon />,
+  'development-boards': <CircuitIcon />,
+  'antennas': <AntennaIcon />,
+  'accessories': <AntennaIcon />,
+}
+
+function categoryIcon(slug: string): React.ReactNode {
+  return CATEGORY_ICONS[slug] ?? <CircuitIcon />
+}
 
 const BENEFITS = [
   {
@@ -167,11 +157,23 @@ export default function Home() {
             title="Shop by Category"
             subtitle="Find exactly what you need for your project"
           />
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            {CATEGORIES.map((cat) => (
-              <CategoryCard key={cat.title} {...cat} />
-            ))}
-          </div>
+          {loading ? (
+            <div className="text-center text-grey-text py-12">Loading...</div>
+          ) : cats.length > 0 ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+              {cats.map((cat) => (
+                <CategoryCard
+                  key={cat.id}
+                  icon={categoryIcon(cat.slug)}
+                  title={cat.name}
+                  description={cat.description}
+                  to={`/shop?category=${cat.slug}`}
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="text-center text-grey-text py-12">No categories found.</div>
+          )}
         </div>
       </section>
 
