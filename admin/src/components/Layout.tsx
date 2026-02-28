@@ -22,6 +22,9 @@ export default function Layout() {
             <NavLink to="/images">Images</NavLink>
           </li>
           <li>
+            <NavLink to="/reviews">Reviews</NavLink>
+          </li>
+          <li>
             <NavLink to="/shipping">Shipping Zones</NavLink>
           </li>
         </ul>

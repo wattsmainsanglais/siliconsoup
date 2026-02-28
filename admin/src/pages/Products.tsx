@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
-import { products, categories, optionGroups } from '../api/client';
-import type { Product, Category, CreateProductRequest, ProductImage, OptionGroup, StoreImage } from '../api/types';
+import { useEffect, useRef, useState } from 'react';
+import { products, categories, optionGroups, productFiles } from '../api/client';
+import type { Product, Category, CreateProductRequest, ProductImage, OptionGroup, StoreImage, ProductFile } from '../api/types';
 import ImagePickerModal from '../components/ImagePickerModal';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8080';
@@ -25,6 +25,18 @@ export default function Products() {
   const [allOptionGroups, setAllOptionGroups] = useState<OptionGroup[]>([]);
   const [linkedOptionGroups, setLinkedOptionGroups] = useState<OptionGroup[]>([]);
   const [showImagePicker, setShowImagePicker] = useState(false);
+  // Physical details
+  const [weightGrams, setWeightGrams] = useState('');
+  const [dimLength, setDimLength] = useState('');
+  const [dimWidth, setDimWidth] = useState('');
+  const [dimHeight, setDimHeight] = useState('');
+  // Files panel
+  const [linkedFiles, setLinkedFiles] = useState<ProductFile[]>([]);
+  const [newFileTitle, setNewFileTitle] = useState('');
+  const [newFileType, setNewFileType] = useState<'pdf' | 'url'>('url');
+  const [newFileUrl, setNewFileUrl] = useState('');
+  const [fileUploading, setFileUploading] = useState(false);
+  const pdfInputRef = useRef<HTMLInputElement>(null);
 
   const loadData = async () => {
     try {
@@ -59,7 +71,17 @@ export default function Products() {
         sort_order: idx + 1,
       }));
 
-      const payload = { ...form, images: imagesPayload };
+      const hasDimensions = dimLength || dimWidth || dimHeight;
+      const payload: CreateProductRequest = {
+        ...form,
+        images: imagesPayload,
+        weight_grams: weightGrams ? parseInt(weightGrams) : null,
+        dimensions: hasDimensions ? {
+          length_mm: parseInt(dimLength) || 0,
+          width_mm: parseInt(dimWidth) || 0,
+          height_mm: parseInt(dimHeight) || 0,
+        } : null,
+      };
 
       if (editingId) {
         await products.update(editingId, payload);
@@ -72,6 +94,8 @@ export default function Products() {
       setForm({ name: '', slug: '', short_description: '', description: '', category_id: null, base_price_pence: 0, status: 'draft' });
       setCurrentImages([]);
       setLinkedOptionGroups([]);
+      setWeightGrams(''); setDimLength(''); setDimWidth(''); setDimHeight('');
+      setLinkedFiles([]);
       loadData();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save');
@@ -107,14 +131,27 @@ export default function Products() {
     });
     setEditingId(prod.id);
     setCurrentImages(prod.images || []);
+    setWeightGrams(prod.weight_grams ? String(prod.weight_grams) : '');
+    if (prod.dimensions) {
+      setDimLength(String(prod.dimensions.length_mm || ''));
+      setDimWidth(String(prod.dimensions.width_mm || ''));
+      setDimHeight(String(prod.dimensions.height_mm || ''));
+    } else {
+      setDimLength(''); setDimWidth(''); setDimHeight('');
+    }
     setShowForm(true);
 
-    // Fetch linked option groups
+    // Fetch linked option groups and files
     try {
-      const linked = await products.getOptions(prod.id);
+      const [linked, files] = await Promise.all([
+        products.getOptions(prod.id),
+        productFiles.list(prod.id),
+      ]);
       setLinkedOptionGroups(linked);
+      setLinkedFiles(files);
     } catch {
       setLinkedOptionGroups([]);
+      setLinkedFiles([]);
     }
   };
 
@@ -146,6 +183,57 @@ export default function Products() {
       setLinkedOptionGroups(linkedOptionGroups.filter(og => og.id !== optionGroupId));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to remove option group');
+    }
+  };
+
+  const handleAddUrlFile = async () => {
+    if (!editingId || !newFileTitle.trim() || !newFileUrl.trim()) return;
+    try {
+      const file = await productFiles.create(editingId, {
+        title: newFileTitle.trim(),
+        type: 'url',
+        url: newFileUrl.trim(),
+        sort_order: linkedFiles.length + 1,
+      });
+      setLinkedFiles([...linkedFiles, file]);
+      setNewFileTitle(''); setNewFileUrl('');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to add file');
+    }
+  };
+
+  const handlePdfSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!editingId || !e.target.files?.[0]) return;
+    const file = e.target.files[0];
+    if (!newFileTitle.trim()) {
+      setError('Enter a title before uploading the PDF');
+      return;
+    }
+    setFileUploading(true);
+    try {
+      const { url } = await productFiles.uploadPdf(file);
+      const created = await productFiles.create(editingId, {
+        title: newFileTitle.trim(),
+        type: 'pdf',
+        url,
+        sort_order: linkedFiles.length + 1,
+      });
+      setLinkedFiles([...linkedFiles, created]);
+      setNewFileTitle('');
+      if (pdfInputRef.current) pdfInputRef.current.value = '';
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to upload PDF');
+    } finally {
+      setFileUploading(false);
+    }
+  };
+
+  const handleRemoveFile = async (fileId: string) => {
+    try {
+      await productFiles.delete(fileId);
+      setLinkedFiles(linkedFiles.filter(f => f.id !== fileId));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to remove file');
     }
   };
 
@@ -241,6 +329,25 @@ export default function Products() {
                 <option value="archived">Archived</option>
               </select>
             </label>
+            <label>
+              Weight (grams)
+              <input
+                type="number"
+                value={weightGrams}
+                onChange={(e) => setWeightGrams(e.target.value)}
+                placeholder="e.g. 85"
+                min="0"
+              />
+            </label>
+            <div>
+              <label style={{ display: 'block', marginBottom: '0.25rem' }}>Dimensions (mm)</label>
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <input type="number" value={dimLength} onChange={(e) => setDimLength(e.target.value)} placeholder="Length" min="0" style={{ flex: 1 }} />
+                <input type="number" value={dimWidth} onChange={(e) => setDimWidth(e.target.value)} placeholder="Width" min="0" style={{ flex: 1 }} />
+                <input type="number" value={dimHeight} onChange={(e) => setDimHeight(e.target.value)} placeholder="Height" min="0" style={{ flex: 1 }} />
+              </div>
+              <small>L × W × H in millimetres</small>
+            </div>
             <div>
               <label style={{ display: 'block', marginBottom: '0.25rem' }}>Images</label>
               <button type="button" onClick={() => setShowImagePicker(true)}>
@@ -283,7 +390,7 @@ export default function Products() {
             </div>
             <div className="form-actions">
               <button type="submit">{editingId ? 'Update' : 'Create'}</button>
-              <button type="button" onClick={() => { setShowForm(false); setEditingId(null); setCurrentImages([]); setLinkedOptionGroups([]); setShowImagePicker(false); }}>
+              <button type="button" onClick={() => { setShowForm(false); setEditingId(null); setCurrentImages([]); setLinkedOptionGroups([]); setShowImagePicker(false); setWeightGrams(''); setDimLength(''); setDimWidth(''); setDimHeight(''); setLinkedFiles([]); setNewFileTitle(''); setNewFileUrl(''); }}>
                 Cancel
               </button>
             </div>
@@ -344,6 +451,61 @@ export default function Products() {
                   No option groups created yet. Create some in the Option Groups page first.
                 </p>
               )}
+            </div>
+          )}
+
+          {editingId && (
+            <div className="form-card" style={{ width: '300px' }}>
+              <h3>Files</h3>
+              <p style={{ fontSize: '0.85rem', color: '#666', marginBottom: '1rem' }}>
+                Attach datasheets (PDF) or reference URLs to this product.
+              </p>
+
+              {linkedFiles.length > 0 && (
+                <ul style={{ margin: '0 0 1rem', paddingLeft: 0, listStyle: 'none' }}>
+                  {linkedFiles.map((f) => (
+                    <li key={f.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem', gap: '0.5rem' }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <span style={{ display: 'block', fontWeight: 500, fontSize: '0.85rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.title}</span>
+                        <span style={{ fontSize: '0.75rem', color: f.type === 'pdf' ? '#d97706' : '#2563eb' }}>{f.type.toUpperCase()}</span>
+                      </div>
+                      <button type="button" onClick={() => handleRemoveFile(f.id)} className="danger" style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem', flexShrink: 0 }}>
+                        Remove
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+
+              <div style={{ borderTop: '1px solid #eee', paddingTop: '0.75rem' }}>
+                <input
+                  type="text"
+                  placeholder="Title (e.g. Datasheet)"
+                  value={newFileTitle}
+                  onChange={(e) => setNewFileTitle(e.target.value)}
+                  style={{ width: '100%', marginBottom: '0.5rem' }}
+                />
+                <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.85rem', cursor: 'pointer' }}>
+                    <input type="radio" name="fileType" checked={newFileType === 'url'} onChange={() => setNewFileType('url')} /> URL
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.85rem', cursor: 'pointer' }}>
+                    <input type="radio" name="fileType" checked={newFileType === 'pdf'} onChange={() => setNewFileType('pdf')} /> PDF
+                  </label>
+                </div>
+                {newFileType === 'url' ? (
+                  <div style={{ display: 'flex', gap: '0.5rem' }}>
+                    <input type="url" placeholder="https://..." value={newFileUrl} onChange={(e) => setNewFileUrl(e.target.value)} style={{ flex: 1 }} />
+                    <button type="button" onClick={handleAddUrlFile} disabled={!newFileTitle.trim() || !newFileUrl.trim()}>Add</button>
+                  </div>
+                ) : (
+                  <div>
+                    <input ref={pdfInputRef} type="file" accept=".pdf" onChange={handlePdfSelected} disabled={fileUploading || !newFileTitle.trim()} style={{ width: '100%' }} />
+                    {!newFileTitle.trim() && <small style={{ color: '#888' }}>Enter a title first</small>}
+                    {fileUploading && <small>Uploading…</small>}
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </div>

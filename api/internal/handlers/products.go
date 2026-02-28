@@ -154,5 +154,23 @@ func (h *ProductHandler) GetProduct(c *fiber.Ctx) error {
 
 	product.OptionGroups = optionGroups
 
+	// Get downloadable files for this product
+	filesRows, err := h.db.Query(ctx,
+		`SELECT id, product_id, title, type, url, sort_order, created_at
+		 FROM product_files WHERE product_id = $1 ORDER BY sort_order, created_at`,
+		product.ID,
+	)
+	if err == nil {
+		var files []models.ProductFile
+		for filesRows.Next() {
+			var f models.ProductFile
+			if err := filesRows.Scan(&f.ID, &f.ProductID, &f.Title, &f.Type, &f.URL, &f.SortOrder, &f.CreatedAt); err == nil {
+				files = append(files, f)
+			}
+		}
+		filesRows.Close()
+		product.Files = files
+	}
+
 	return c.JSON(product)
 }

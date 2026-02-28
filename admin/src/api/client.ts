@@ -203,6 +203,55 @@ export const imageStore = {
     request<void>(`/api/admin/images/${id}`, { method: 'DELETE' }),
 };
 
+// Product Files
+interface ProductFilesResponse {
+  files: import('./types').ProductFile[];
+  count: number;
+}
+
+export const productFiles = {
+  list: async (productId: string) => {
+    const res = await request<ProductFilesResponse>(`/api/admin/products/${productId}/files`);
+    return res.files;
+  },
+  create: (productId: string, data: { title: string; type: 'pdf' | 'url'; url: string; sort_order?: number }) =>
+    request<import('./types').ProductFile>(`/api/admin/products/${productId}/files`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  delete: (fileId: string) =>
+    request<void>(`/api/admin/product-files/${fileId}`, { method: 'DELETE' }),
+  uploadPdf: async (file: File): Promise<{ filename: string; url: string }> => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const response = await fetch(`${API_BASE}/api/admin/files/upload`, {
+      method: 'POST',
+      body: formData,
+    });
+    if (!response.ok) {
+      const error = await response.text();
+      throw new Error(error || `HTTP ${response.status}`);
+    }
+    return response.json();
+  },
+};
+
+// Reviews
+interface ReviewsResponse {
+  reviews: import('./types').Review[];
+  count: number;
+}
+
+export const reviews = {
+  list: async (status?: string) => {
+    const url = status ? `/api/admin/reviews?status=${status}` : '/api/admin/reviews';
+    const res = await request<ReviewsResponse>(url);
+    return res.reviews;
+  },
+  remove: (id: string) =>
+    request<void>(`/api/admin/reviews/${id}`, { method: 'DELETE' }),
+};
+
 // Shipping Zones
 export const shippingZones = {
   list: async () => {

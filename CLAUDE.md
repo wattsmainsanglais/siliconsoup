@@ -63,6 +63,12 @@ siliconsoup/
 
 ## Development
 
+### Start Docker machine
+```bash
+ sudo systemctl start docker
+```
+
+
 ### Start Database
 ```bash
 docker compose up -d db
@@ -156,6 +162,7 @@ Run automatically on server start. Files in `api/migrations/` named like `001_in
 - `POST /api/admin/upload` - Upload image (form: `image` file, `folder` string)
 - `GET /uploads/:folder/:filename` - Serve uploaded files
 
+
 ## Environment Variables
 
 ```
@@ -168,3 +175,7 @@ SITE_ID=                    # Optional, auto-detects siliconsoup
 ## Client
 
 **Paul** - Owner of SiliconSoup. Technical background, can handle admin interface. Key requirement: ability to add product variants without developer intervention.
+
+
+
+

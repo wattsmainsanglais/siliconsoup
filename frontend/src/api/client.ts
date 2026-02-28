@@ -1,4 +1,4 @@
-import type { Product, Category, ShippingZone } from './types'
+import type { Product, Category, ShippingZone, Review } from './types'
 
 const API_BASE = import.meta.env.VITE_API_URL
 
@@ -8,12 +8,18 @@ export function imageUrl(path: string): string {
   return `${API_BASE}${path}`
 }
 
-async function request<T>(endpoint: string): Promise<T> {
-  const response = await fetch(`${API_BASE}${endpoint}`)
+async function request<T>(endpoint: string, options?: RequestInit): Promise<T> {
+  const response = await fetch(`${API_BASE}${endpoint}`, {
+    ...options,
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+  })
 
   if (!response.ok) {
-    const error = await response.text()
-    throw new Error(error || `HTTP ${response.status}`)
+    const body = await response.json().catch(() => null)
+    const message = body?.error || `HTTP ${response.status}`
+    const err = new Error(message)
+    ;(err as Error & { status: number }).status = response.status
+    throw err
   }
 
   return response.json()
@@ -55,4 +61,24 @@ export const shippingZones = {
     const res = await request<ShippingZonesResponse>('/api/shipping-zones')
     return res.shipping_zones
   },
+}
+
+interface ReviewsResponse {
+  reviews: Review[]
+  count: number
+}
+
+export const reviews = {
+  list: (slug: string): Promise<ReviewsResponse> =>
+    request<ReviewsResponse>(`/api/products/${slug}/reviews`),
+  submit: (slug: string, data: {
+    customer_email: string
+    display_name: string
+    rating: number
+    comment: string
+  }): Promise<Review> =>
+    request<Review>(`/api/products/${slug}/reviews`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
 }

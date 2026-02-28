@@ -53,6 +53,7 @@ type Product struct {
 	// Joined data
 	Category     *Category     `json:"category,omitempty"`
 	OptionGroups []OptionGroup `json:"option_groups,omitempty"`
+	Files        []ProductFile `json:"files,omitempty"`
 }
 
 // ProductListItem is a lighter version for list views
@@ -221,6 +222,30 @@ type CartItemCalculated struct {
 	TotalPence     int    `json:"total_pence"`
 }
 
+// ProductFile represents a datasheet PDF or reference URL attached to a product
+type ProductFile struct {
+	ID        string    `json:"id"`
+	ProductID string    `json:"product_id"`
+	Title     string    `json:"title"`
+	Type      string    `json:"type"` // pdf | url
+	URL       string    `json:"url"`
+	SortOrder int       `json:"sort_order"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+// Review represents a verified-purchase product review
+type Review struct {
+	ID            string    `json:"id"`
+	SiteID        string    `json:"site_id"`
+	ProductID     string    `json:"product_id"`
+	CustomerEmail string    `json:"customer_email"`
+	DisplayName   string    `json:"display_name"`
+	Rating        int       `json:"rating"`
+	Comment       string    `json:"comment"`
+	Status        string    `json:"status"` // published | removed
+	CreatedAt     time.Time `json:"created_at"`
+}
+
 // Admin request types
 
 type CreateCategoryRequest struct {
@@ -248,17 +273,32 @@ type CreateOptionValueRequest struct {
 }
 
 type CreateProductRequest struct {
-	CategoryID       *string        `json:"category_id,omitempty"`
-	Slug             string         `json:"slug"`
-	Name             string         `json:"name"`
-	Description      *string        `json:"description,omitempty"`
-	ShortDescription *string        `json:"short_description,omitempty"`
-	BasePricePence   int            `json:"base_price_pence"`
-	SKU              *string        `json:"sku,omitempty"`
-	WeightGrams      *int           `json:"weight_grams,omitempty"`
-	Images           []ProductImage `json:"images"`
-	Status           string         `json:"status"` // active, draft, archived
-	Featured         bool           `json:"featured"`
+	CategoryID       *string         `json:"category_id,omitempty"`
+	Slug             string          `json:"slug"`
+	Name             string          `json:"name"`
+	Description      *string         `json:"description,omitempty"`
+	ShortDescription *string         `json:"short_description,omitempty"`
+	BasePricePence   int             `json:"base_price_pence"`
+	SKU              *string         `json:"sku,omitempty"`
+	WeightGrams      *int            `json:"weight_grams,omitempty"`
+	Dimensions       json.RawMessage `json:"dimensions,omitempty"`
+	Images           []ProductImage  `json:"images"`
+	Status           string          `json:"status"` // active, draft, archived
+	Featured         bool            `json:"featured"`
+}
+
+type CreateProductFileRequest struct {
+	Title     string `json:"title"`
+	Type      string `json:"type"` // pdf | url
+	URL       string `json:"url"`
+	SortOrder int    `json:"sort_order"`
+}
+
+type CreateReviewRequest struct {
+	CustomerEmail string `json:"customer_email"`
+	DisplayName   string `json:"display_name"`
+	Rating        int    `json:"rating"`
+	Comment       string `json:"comment"`
 }
 
 type CreateProductOptionRequest struct {

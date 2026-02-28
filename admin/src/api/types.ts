@@ -37,6 +37,12 @@ export interface OptionValue {
   updated_at?: string;
 }
 
+export interface Dimensions {
+  length_mm: number;
+  width_mm: number;
+  height_mm: number;
+}
+
 export interface Product {
   id: string;
   site_id?: string;
@@ -48,6 +54,8 @@ export interface Product {
   category_slug?: string;
   category_name?: string;
   base_price_pence: number;
+  weight_grams?: number | null;
+  dimensions?: Dimensions | null;
   status: string;
   featured?: boolean;
   has_options?: boolean;
@@ -55,6 +63,30 @@ export interface Product {
   updated_at?: string;
   images?: ProductImage[];
   option_groups?: OptionGroup[];
+}
+
+export interface ProductFile {
+  id: string;
+  product_id: string;
+  title: string;
+  type: 'pdf' | 'url';
+  url: string;
+  sort_order: number;
+  created_at: string;
+}
+
+export interface Review {
+  id: string;
+  site_id: string;
+  product_id: string;
+  customer_email: string;
+  display_name: string;
+  rating: number;
+  comment: string;
+  status: 'published' | 'removed';
+  created_at: string;
+  product_name?: string;
+  product_slug?: string;
 }
 
 export interface ProductImage {
@@ -118,5 +150,9 @@ export interface CreateProductRequest {
   description?: string;
   category_id?: string | null;
   base_price_pence: number;
+  weight_grams?: number | null;
+  dimensions?: Dimensions | null;
+  images?: ProductImage[];
   status?: string;
+  featured?: boolean;
 }

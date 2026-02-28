@@ -73,6 +73,7 @@ func main() {
 	categoryHandler := handlers.NewCategoryHandler(database.GetDB(), siteID)
 	shippingHandler := handlers.NewShippingHandler(database.GetDB(), siteID)
 	adminHandler := handlers.NewAdminHandler(database.GetDB(), siteID, "./uploads")
+	reviewHandler := handlers.NewReviewHandler(database.GetDB(), siteID)
 
 	// API routes
 	api := app.Group("/api")
@@ -80,6 +81,8 @@ func main() {
 	// Public endpoints
 	api.Get("/products", productHandler.ListProducts)
 	api.Get("/products/:slug", productHandler.GetProduct)
+	api.Get("/products/:slug/reviews", reviewHandler.ListProductReviews)
+	api.Post("/products/:slug/reviews", reviewHandler.CreateReview)
 	api.Get("/categories", categoryHandler.ListCategories)
 	api.Get("/shipping-zones", shippingHandler.ListShippingZones)
 
@@ -118,6 +121,16 @@ func main() {
 	admin.Get("/products/:id/options", adminHandler.GetProductOptions)
 	admin.Post("/product-options", adminHandler.CreateProductOption)
 	admin.Delete("/product-options/:productId/:optionGroupId", adminHandler.DeleteProductOption)
+
+	// Product Files
+	admin.Get("/products/:id/files", adminHandler.ListProductFiles)
+	admin.Post("/products/:id/files", adminHandler.CreateProductFile)
+	admin.Delete("/product-files/:id", adminHandler.DeleteProductFile)
+	admin.Post("/files/upload", adminHandler.UploadFile)
+
+	// Reviews
+	admin.Get("/reviews", adminHandler.ListReviews)
+	admin.Delete("/reviews/:id", adminHandler.RemoveReview)
 
 	// Graceful shutdown
 	go func() {

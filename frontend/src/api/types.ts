@@ -27,6 +27,33 @@ export interface OptionValue {
   image?: string
 }
 
+export interface Dimensions {
+  length_mm: number
+  width_mm: number
+  height_mm: number
+}
+
+export interface ProductFile {
+  id: string
+  product_id: string
+  title: string
+  type: 'pdf' | 'url'
+  url: string
+  sort_order: number
+  created_at: string
+}
+
+export interface Review {
+  id: string
+  product_id: string
+  display_name: string
+  customer_email: string
+  rating: number
+  comment: string
+  status: string
+  created_at: string
+}
+
 export interface Product {
   id: string
   name: string
@@ -37,11 +64,14 @@ export interface Product {
   category_slug?: string
   category_name?: string
   base_price_pence: number
+  weight_grams?: number | null
+  dimensions?: Dimensions | null
   status: string
   featured?: boolean
   has_options?: boolean
   images?: ProductImage[]
   option_groups?: OptionGroup[]
+  files?: ProductFile[]
 }
 
 export interface ProductImage {

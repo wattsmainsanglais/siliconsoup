@@ -291,7 +291,7 @@ func (h *AdminHandler) ListProducts(c *fiber.Ctx) error {
 
 	query := `
 		SELECT p.id, p.slug, p.name, p.description, p.short_description, p.base_price_pence,
-			p.images, p.status, p.featured, p.category_id,
+			p.weight_grams, p.dimensions, p.images, p.status, p.featured, p.category_id,
 			c.slug as category_slug, c.name as category_name
 		FROM products p
 		LEFT JOIN categories c ON p.category_id = c.id
@@ -313,6 +313,8 @@ func (h *AdminHandler) ListProducts(c *fiber.Ctx) error {
 		Description      *string         `json:"description,omitempty"`
 		ShortDescription *string         `json:"short_description,omitempty"`
 		BasePricePence   int             `json:"base_price_pence"`
+		WeightGrams      *int            `json:"weight_grams,omitempty"`
+		Dimensions       json.RawMessage `json:"dimensions,omitempty"`
 		Images           json.RawMessage `json:"images"`
 		Status           string          `json:"status"`
 		Featured         bool            `json:"featured"`
@@ -325,7 +327,7 @@ func (h *AdminHandler) ListProducts(c *fiber.Ctx) error {
 	for rows.Next() {
 		var p AdminProduct
 		err := rows.Scan(&p.ID, &p.Slug, &p.Name, &p.Description, &p.ShortDescription, &p.BasePricePence,
-			&p.Images, &p.Status, &p.Featured, &p.CategoryID, &p.CategorySlug, &p.CategoryName)
+			&p.WeightGrams, &p.Dimensions, &p.Images, &p.Status, &p.Featured, &p.CategoryID, &p.CategorySlug, &p.CategoryName)
 		if err != nil {
 			return c.Status(500).JSON(fiber.Map{"error": "Failed to scan product", "details": err.Error()})
 		}
@@ -530,18 +532,18 @@ func (h *AdminHandler) CreateProduct(c *fiber.Ctx) error {
 
 	query := `
 		INSERT INTO products (id, site_id, category_id, slug, name, description, short_description,
-			base_price_pence, sku, weight_grams, images, status, featured)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+			base_price_pence, sku, weight_grams, dimensions, images, status, featured)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
 		RETURNING id, site_id, category_id, slug, name, description, short_description,
-			base_price_pence, sku, weight_grams, images, status, featured, created_at, updated_at
+			base_price_pence, sku, weight_grams, dimensions, images, status, featured, created_at, updated_at
 	`
 
 	var p models.Product
 	err = h.db.QueryRow(ctx, query,
 		id, h.siteID, req.CategoryID, req.Slug, req.Name, req.Description, req.ShortDescription,
-		req.BasePricePence, req.SKU, req.WeightGrams, imagesJSON, req.Status, req.Featured,
+		req.BasePricePence, req.SKU, req.WeightGrams, req.Dimensions, imagesJSON, req.Status, req.Featured,
 	).Scan(&p.ID, &p.SiteID, &p.CategoryID, &p.Slug, &p.Name, &p.Description, &p.ShortDescription,
-		&p.BasePricePence, &p.SKU, &p.WeightGrams, &p.Images, &p.Status, &p.Featured, &p.CreatedAt, &p.UpdatedAt)
+		&p.BasePricePence, &p.SKU, &p.WeightGrams, &p.Dimensions, &p.Images, &p.Status, &p.Featured, &p.CreatedAt, &p.UpdatedAt)
 
 	if err != nil {
 		if strings.Contains(err.Error(), "duplicate") {
@@ -742,24 +744,25 @@ func (h *AdminHandler) UpdateProduct(c *fiber.Ctx) error {
 			short_description = COALESCE($5, short_description),
 			base_price_pence = $6,
 			sku = COALESCE($7, sku),
-			weight_grams = COALESCE($8, weight_grams),
-			images = COALESCE($9, images),
-			status = COALESCE(NULLIF($10, ''), status),
-			featured = $11,
+			weight_grams = $8,
+			dimensions = $9,
+			images = COALESCE($10, images),
+			status = COALESCE(NULLIF($11, ''), status),
+			featured = $12,
 			updated_at = NOW()
-		WHERE id = $12 AND site_id = $13
+		WHERE id = $13 AND site_id = $14
 		RETURNING id, site_id, category_id, slug, name, description, short_description,
-			base_price_pence, sku, weight_grams, images, status, featured, created_at, updated_at
+			base_price_pence, sku, weight_grams, dimensions, images, status, featured, created_at, updated_at
 	`
 
 	var p models.Product
 	var err error
 	err = h.db.QueryRow(ctx, query,
 		req.CategoryID, req.Slug, req.Name, req.Description, req.ShortDescription,
-		req.BasePricePence, req.SKU, req.WeightGrams, imagesJSON, req.Status, req.Featured,
+		req.BasePricePence, req.SKU, req.WeightGrams, req.Dimensions, imagesJSON, req.Status, req.Featured,
 		id, h.siteID,
 	).Scan(&p.ID, &p.SiteID, &p.CategoryID, &p.Slug, &p.Name, &p.Description, &p.ShortDescription,
-		&p.BasePricePence, &p.SKU, &p.WeightGrams, &p.Images, &p.Status, &p.Featured, &p.CreatedAt, &p.UpdatedAt)
+		&p.BasePricePence, &p.SKU, &p.WeightGrams, &p.Dimensions, &p.Images, &p.Status, &p.Featured, &p.CreatedAt, &p.UpdatedAt)
 
 	if err != nil {
 		if strings.Contains(err.Error(), "no rows") {
