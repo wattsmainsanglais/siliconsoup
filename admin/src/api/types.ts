@@ -1,5 +1,12 @@
 // API Types matching Go backend (UUIDs as strings)
 
+export interface Site {
+  id: string;
+  slug: string;
+  name: string;
+  currency: string;
+}
+
 export interface Category {
   id: string;
   site_id: string;

@@ -2,6 +2,15 @@
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8080';
 
+let currentSiteId = '';
+export function setCurrentSiteId(id: string) {
+  currentSiteId = id;
+}
+
+function getSiteHeaders(): Record<string, string> {
+  return currentSiteId ? { 'X-Site-ID': currentSiteId } : {};
+}
+
 async function request<T>(
   endpoint: string,
   options: RequestInit = {}
@@ -12,6 +21,7 @@ async function request<T>(
     ...options,
     headers: {
       'Content-Type': 'application/json',
+      ...getSiteHeaders(),
       ...options.headers,
     },
   });
@@ -160,6 +170,7 @@ export const images = {
 
     const response = await fetch(`${API_BASE}/api/admin/upload`, {
       method: 'POST',
+      headers: getSiteHeaders(),
       body: formData,
     });
 
@@ -189,6 +200,7 @@ export const imageStore = {
 
     const response = await fetch(`${API_BASE}/api/admin/images`, {
       method: 'POST',
+      headers: getSiteHeaders(),
       body: formData,
     });
 
@@ -226,6 +238,7 @@ export const productFiles = {
     formData.append('file', file);
     const response = await fetch(`${API_BASE}/api/admin/files/upload`, {
       method: 'POST',
+      headers: getSiteHeaders(),
       body: formData,
     });
     if (!response.ok) {
@@ -257,5 +270,18 @@ export const shippingZones = {
   list: async () => {
     const res = await request<ShippingZonesResponse>('/api/shipping-zones');
     return res.shipping_zones;
+  },
+};
+
+// Sites
+interface SitesResponse {
+  sites: import('./types').Site[];
+  count: number;
+}
+
+export const sites = {
+  list: async () => {
+    const res = await request<SitesResponse>('/api/admin/sites');
+    return res.sites;
   },
 };

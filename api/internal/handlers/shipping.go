@@ -28,7 +28,7 @@ func (h *ShippingHandler) ListShippingZones(c *fiber.Ctx) error {
 		ORDER BY base_rate_pence
 	`
 
-	rows, err := h.db.Query(ctx, query, h.siteID)
+	rows, err := h.db.Query(ctx, query, siteIDFromCtx(c, h.siteID))
 	if err != nil {
 		return c.Status(500).JSON(fiber.Map{"error": "Failed to fetch shipping zones"})
 	}

@@ -33,7 +33,7 @@ func (h *ProductHandler) ListProducts(c *fiber.Ctx) error {
 		ORDER BY p.featured DESC, p.name ASC
 	`
 
-	rows, err := h.db.Query(ctx, query, h.siteID)
+	rows, err := h.db.Query(ctx, query, siteIDFromCtx(c, h.siteID))
 	if err != nil {
 		return c.Status(500).JSON(fiber.Map{"error": "Failed to fetch products"})
 	}
@@ -75,7 +75,7 @@ func (h *ProductHandler) GetProduct(c *fiber.Ctx) error {
 	`
 
 	var product models.Product
-	err := h.db.QueryRow(ctx, productQuery, h.siteID, slug).Scan(
+	err := h.db.QueryRow(ctx, productQuery, siteIDFromCtx(c, h.siteID), slug).Scan(
 		&product.ID, &product.SiteID, &product.CategoryID, &product.Slug,
 		&product.Name, &product.Description, &product.ShortDescription,
 		&product.BasePricePence, &product.SKU, &product.WeightGrams,

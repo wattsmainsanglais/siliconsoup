@@ -57,6 +57,9 @@ func main() {
 	// Setup middleware
 	middleware.SetupMiddleware(app, cfg.Environment)
 
+	// Site-switching middleware — reads optional X-Site-ID header on every request
+	app.Use(middleware.SiteMiddleware(database.GetDB()))
+
 	// Health check
 	app.Get("/health", func(c *fiber.Ctx) error {
 		return c.JSON(fiber.Map{
@@ -88,6 +91,7 @@ func main() {
 
 	// Admin endpoints
 	admin := api.Group("/admin")
+	admin.Get("/sites", adminHandler.ListSites)
 	admin.Post("/upload", adminHandler.UploadImage)
 
 	// Image Store

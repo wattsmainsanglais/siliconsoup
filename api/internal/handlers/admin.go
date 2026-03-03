@@ -26,6 +26,39 @@ func NewAdminHandler(db *pgxpool.Pool, siteID string, uploadPath string) *AdminH
 	return &AdminHandler{db: db, siteID: siteID, uploadPath: uploadPath}
 }
 
+// ListSites returns all sites for the site switcher
+func (h *AdminHandler) ListSites(c *fiber.Ctx) error {
+	ctx := context.Background()
+
+	rows, err := h.db.Query(ctx, `SELECT id, slug, name, currency FROM sites ORDER BY name`)
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "Failed to fetch sites"})
+	}
+	defer rows.Close()
+
+	type Site struct {
+		ID       string `json:"id"`
+		Slug     string `json:"slug"`
+		Name     string `json:"name"`
+		Currency string `json:"currency"`
+	}
+
+	var sites []Site
+	for rows.Next() {
+		var s Site
+		if err := rows.Scan(&s.ID, &s.Slug, &s.Name, &s.Currency); err != nil {
+			continue
+		}
+		sites = append(sites, s)
+	}
+
+	if sites == nil {
+		sites = []Site{}
+	}
+
+	return c.JSON(fiber.Map{"sites": sites, "count": len(sites)})
+}
+
 // UploadImage handles image uploads
 // Optional form fields: product_id (links image to product), alt (image alt text)
 func (h *AdminHandler) UploadImage(c *fiber.Ctx) error {
@@ -88,7 +121,7 @@ func (h *AdminHandler) UploadImage(c *fiber.Ctx) error {
 		var currentImages json.RawMessage
 		err := h.db.QueryRow(ctx,
 			"SELECT COALESCE(images, '[]'::jsonb) FROM products WHERE id = $1 AND site_id = $2",
-			productID, h.siteID,
+			productID, siteIDFromCtx(c, h.siteID),
 		).Scan(&currentImages)
 
 		if err != nil {
@@ -122,7 +155,7 @@ func (h *AdminHandler) UploadImage(c *fiber.Ctx) error {
 		updatedImages, _ := json.Marshal(images)
 		_, err = h.db.Exec(ctx,
 			"UPDATE products SET images = $1, updated_at = NOW() WHERE id = $2 AND site_id = $3",
-			updatedImages, productID, h.siteID,
+			updatedImages, productID, siteIDFromCtx(c, h.siteID),
 		)
 
 		if err != nil {
@@ -299,7 +332,7 @@ func (h *AdminHandler) ListProducts(c *fiber.Ctx) error {
 		ORDER BY p.created_at DESC
 	`
 
-	rows, err := h.db.Query(ctx, query, h.siteID)
+	rows, err := h.db.Query(ctx, query, siteIDFromCtx(c, h.siteID))
 	if err != nil {
 		return c.Status(500).JSON(fiber.Map{"error": "Failed to fetch products"})
 	}
@@ -364,7 +397,7 @@ func (h *AdminHandler) CreateCategory(c *fiber.Ctx) error {
 
 	var cat models.Category
 	err := h.db.QueryRow(ctx, query,
-		id, h.siteID, req.Slug, req.Name, req.Description, req.ParentID, req.SortOrder,
+		id, siteIDFromCtx(c, h.siteID), req.Slug, req.Name, req.Description, req.ParentID, req.SortOrder,
 	).Scan(&cat.ID, &cat.SiteID, &cat.Slug, &cat.Name, &cat.Description, &cat.ParentID, &cat.SortOrder, &cat.CreatedAt)
 
 	if err != nil {
@@ -388,7 +421,7 @@ func (h *AdminHandler) ListOptionGroups(c *fiber.Ctx) error {
 		ORDER BY og.name
 	`
 
-	rows, err := h.db.Query(ctx, query, h.siteID)
+	rows, err := h.db.Query(ctx, query, siteIDFromCtx(c, h.siteID))
 	if err != nil {
 		return c.Status(500).JSON(fiber.Map{"error": "Failed to fetch option groups"})
 	}
@@ -461,7 +494,7 @@ func (h *AdminHandler) CreateOptionGroup(c *fiber.Ctx) error {
 
 	var og models.OptionGroup
 	err := h.db.QueryRow(ctx, query,
-		id, h.siteID, req.Name, req.Type, req.Required,
+		id, siteIDFromCtx(c, h.siteID), req.Name, req.Type, req.Required,
 	).Scan(&og.ID, &og.SiteID, &og.Name, &og.Type, &og.Required, &og.CreatedAt)
 
 	if err != nil {
@@ -540,7 +573,7 @@ func (h *AdminHandler) CreateProduct(c *fiber.Ctx) error {
 
 	var p models.Product
 	err = h.db.QueryRow(ctx, query,
-		id, h.siteID, req.CategoryID, req.Slug, req.Name, req.Description, req.ShortDescription,
+		id, siteIDFromCtx(c, h.siteID), req.CategoryID, req.Slug, req.Name, req.Description, req.ShortDescription,
 		req.BasePricePence, req.SKU, req.WeightGrams, req.Dimensions, imagesJSON, req.Status, req.Featured,
 	).Scan(&p.ID, &p.SiteID, &p.CategoryID, &p.Slug, &p.Name, &p.Description, &p.ShortDescription,
 		&p.BasePricePence, &p.SKU, &p.WeightGrams, &p.Dimensions, &p.Images, &p.Status, &p.Featured, &p.CreatedAt, &p.UpdatedAt)
@@ -625,7 +658,7 @@ func (h *AdminHandler) UpdateCategory(c *fiber.Ctx) error {
 
 	var cat models.Category
 	err := h.db.QueryRow(ctx, query,
-		req.Slug, req.Name, req.Description, req.ParentID, req.SortOrder, id, h.siteID,
+		req.Slug, req.Name, req.Description, req.ParentID, req.SortOrder, id, siteIDFromCtx(c, h.siteID),
 	).Scan(&cat.ID, &cat.SiteID, &cat.Slug, &cat.Name, &cat.Description, &cat.ParentID, &cat.SortOrder, &cat.CreatedAt)
 
 	if err != nil {
@@ -659,7 +692,7 @@ func (h *AdminHandler) UpdateOptionGroup(c *fiber.Ctx) error {
 
 	var og models.OptionGroup
 	err := h.db.QueryRow(ctx, query,
-		req.Name, req.Type, req.Required, id, h.siteID,
+		req.Name, req.Type, req.Required, id, siteIDFromCtx(c, h.siteID),
 	).Scan(&og.ID, &og.SiteID, &og.Name, &og.Type, &og.Required, &og.CreatedAt)
 
 	if err != nil {
@@ -760,7 +793,7 @@ func (h *AdminHandler) UpdateProduct(c *fiber.Ctx) error {
 	err = h.db.QueryRow(ctx, query,
 		req.CategoryID, req.Slug, req.Name, req.Description, req.ShortDescription,
 		req.BasePricePence, req.SKU, req.WeightGrams, req.Dimensions, imagesJSON, req.Status, req.Featured,
-		id, h.siteID,
+		id, siteIDFromCtx(c, h.siteID),
 	).Scan(&p.ID, &p.SiteID, &p.CategoryID, &p.Slug, &p.Name, &p.Description, &p.ShortDescription,
 		&p.BasePricePence, &p.SKU, &p.WeightGrams, &p.Dimensions, &p.Images, &p.Status, &p.Featured, &p.CreatedAt, &p.UpdatedAt)
 
@@ -783,7 +816,7 @@ func (h *AdminHandler) DeleteCategory(c *fiber.Ctx) error {
 
 	result, err := h.db.Exec(ctx,
 		"DELETE FROM categories WHERE id = $1 AND site_id = $2",
-		id, h.siteID)
+		id, siteIDFromCtx(c, h.siteID))
 
 	if err != nil {
 		if strings.Contains(err.Error(), "foreign key") {
@@ -806,7 +839,7 @@ func (h *AdminHandler) DeleteOptionGroup(c *fiber.Ctx) error {
 
 	result, err := h.db.Exec(ctx,
 		"DELETE FROM option_groups WHERE id = $1 AND site_id = $2",
-		id, h.siteID)
+		id, siteIDFromCtx(c, h.siteID))
 
 	if err != nil {
 		if strings.Contains(err.Error(), "foreign key") {
@@ -849,7 +882,7 @@ func (h *AdminHandler) DeleteProduct(c *fiber.Ctx) error {
 	var imagesJSON json.RawMessage
 	err := h.db.QueryRow(ctx,
 		"SELECT COALESCE(images, '[]'::jsonb) FROM products WHERE id = $1 AND site_id = $2",
-		id, h.siteID,
+		id, siteIDFromCtx(c, h.siteID),
 	).Scan(&imagesJSON)
 
 	if err != nil {
@@ -865,7 +898,7 @@ func (h *AdminHandler) DeleteProduct(c *fiber.Ctx) error {
 	// Delete the product from DB
 	result, err := h.db.Exec(ctx,
 		"DELETE FROM products WHERE id = $1 AND site_id = $2",
-		id, h.siteID)
+		id, siteIDFromCtx(c, h.siteID))
 
 	if err != nil {
 		return c.Status(500).JSON(fiber.Map{"error": "Failed to delete product"})

@@ -29,7 +29,7 @@ func (h *ReviewHandler) ListProductReviews(c *fiber.Ctx) error {
 	var productID string
 	err := h.db.QueryRow(ctx,
 		"SELECT id FROM products WHERE site_id = $1 AND slug = $2 AND status = 'active'",
-		h.siteID, slug,
+		siteIDFromCtx(c, h.siteID), slug,
 	).Scan(&productID)
 	if err != nil {
 		return c.Status(404).JSON(fiber.Map{"error": "Product not found"})
@@ -82,10 +82,12 @@ func (h *ReviewHandler) CreateReview(c *fiber.Ctx) error {
 
 	ctx := context.Background()
 
+	siteID := siteIDFromCtx(c, h.siteID)
+
 	var productID string
 	err := h.db.QueryRow(ctx,
 		"SELECT id FROM products WHERE site_id = $1 AND slug = $2 AND status = 'active'",
-		h.siteID, slug,
+		siteID, slug,
 	).Scan(&productID)
 	if err != nil {
 		return c.Status(404).JSON(fiber.Map{"error": "Product not found"})
@@ -101,7 +103,7 @@ func (h *ReviewHandler) CreateReview(c *fiber.Ctx) error {
 			AND payment_status = 'paid'
 			AND items @> jsonb_build_array(jsonb_build_object('product_id', $3::text))
 		)`,
-		h.siteID, strings.ToLower(req.CustomerEmail), productID,
+		siteID, strings.ToLower(req.CustomerEmail), productID,
 	).Scan(&hasPurchased)
 	if err != nil {
 		return c.Status(500).JSON(fiber.Map{"error": "Failed to verify purchase"})
@@ -115,7 +117,7 @@ func (h *ReviewHandler) CreateReview(c *fiber.Ctx) error {
 		`INSERT INTO reviews (id, site_id, product_id, customer_email, display_name, rating, comment)
 		 VALUES ($1, $2, $3, $4, $5, $6, $7)
 		 RETURNING id, site_id, product_id, customer_email, display_name, rating, comment, status, created_at`,
-		uuid.New().String(), h.siteID, productID,
+		uuid.New().String(), siteID, productID,
 		strings.ToLower(req.CustomerEmail), req.DisplayName, req.Rating, req.Comment,
 	).Scan(&r.ID, &r.SiteID, &r.ProductID, &r.CustomerEmail,
 		&r.DisplayName, &r.Rating, &r.Comment, &r.Status, &r.CreatedAt)
@@ -146,7 +148,7 @@ func (h *AdminHandler) ListReviews(c *fiber.Ctx) error {
 		JOIN products p ON r.product_id = p.id
 		WHERE r.site_id = $1`
 
-	args := []interface{}{h.siteID}
+	args := []interface{}{siteIDFromCtx(c, h.siteID)}
 	if status != "" {
 		query += " AND r.status = $2"
 		args = append(args, status)
@@ -192,7 +194,7 @@ func (h *AdminHandler) RemoveReview(c *fiber.Ctx) error {
 
 	result, err := h.db.Exec(ctx,
 		"UPDATE reviews SET status = 'removed' WHERE id = $1 AND site_id = $2",
-		id, h.siteID,
+		id, siteIDFromCtx(c, h.siteID),
 	)
 	if err != nil {
 		return c.Status(500).JSON(fiber.Map{"error": "Failed to remove review"})

@@ -29,7 +29,7 @@ func (h *CategoryHandler) ListCategories(c *fiber.Ctx) error {
 		ORDER BY sort_order, name
 	`
 
-	rows, err := h.db.Query(ctx, query, h.siteID)
+	rows, err := h.db.Query(ctx, query, siteIDFromCtx(c, h.siteID))
 	if err != nil {
 		return c.Status(500).JSON(fiber.Map{"error": "Failed to fetch categories"})
 	}

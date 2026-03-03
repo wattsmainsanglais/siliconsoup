@@ -7,23 +7,26 @@ import OptionGroups from './pages/OptionGroups';
 import ShippingZones from './pages/ShippingZones';
 import Images from './pages/Images';
 import Reviews from './pages/Reviews';
+import { SiteProvider } from './contexts/SiteContext';
 import './App.css';
 
 function App() {
   return (
-    <BrowserRouter>
-      <Routes>
-        <Route path="/" element={<Layout />}>
-          <Route index element={<Dashboard />} />
-          <Route path="categories" element={<Categories />} />
-          <Route path="products" element={<Products />} />
-          <Route path="option-groups" element={<OptionGroups />} />
-          <Route path="images" element={<Images />} />
-          <Route path="reviews" element={<Reviews />} />
-          <Route path="shipping" element={<ShippingZones />} />
-        </Route>
-      </Routes>
-    </BrowserRouter>
+    <SiteProvider>
+      <BrowserRouter>
+        <Routes>
+          <Route path="/" element={<Layout />}>
+            <Route index element={<Dashboard />} />
+            <Route path="categories" element={<Categories />} />
+            <Route path="products" element={<Products />} />
+            <Route path="option-groups" element={<OptionGroups />} />
+            <Route path="images" element={<Images />} />
+            <Route path="reviews" element={<Reviews />} />
+            <Route path="shipping" element={<ShippingZones />} />
+          </Route>
+        </Routes>
+      </BrowserRouter>
+    </SiteProvider>
   );
 }
 
