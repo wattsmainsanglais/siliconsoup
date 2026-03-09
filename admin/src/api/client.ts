@@ -7,8 +7,16 @@ export function setCurrentSiteId(id: string) {
   currentSiteId = id;
 }
 
-function getSiteHeaders(): Record<string, string> {
-  return currentSiteId ? { 'X-Site-ID': currentSiteId } : {};
+let currentApiKey = '';
+export function setApiKey(key: string) {
+  currentApiKey = key;
+}
+
+function getHeaders(): Record<string, string> {
+  const headers: Record<string, string> = {};
+  if (currentSiteId) headers['X-Site-ID'] = currentSiteId;
+  if (currentApiKey) headers['Authorization'] = `Bearer ${currentApiKey}`;
+  return headers;
 }
 
 async function request<T>(
@@ -21,7 +29,7 @@ async function request<T>(
     ...options,
     headers: {
       'Content-Type': 'application/json',
-      ...getSiteHeaders(),
+      ...getHeaders(),
       ...options.headers,
     },
   });
@@ -170,7 +178,7 @@ export const images = {
 
     const response = await fetch(`${API_BASE}/api/admin/upload`, {
       method: 'POST',
-      headers: getSiteHeaders(),
+      headers: getHeaders(),
       body: formData,
     });
 
@@ -200,7 +208,7 @@ export const imageStore = {
 
     const response = await fetch(`${API_BASE}/api/admin/images`, {
       method: 'POST',
-      headers: getSiteHeaders(),
+      headers: getHeaders(),
       body: formData,
     });
 
@@ -238,7 +246,7 @@ export const productFiles = {
     formData.append('file', file);
     const response = await fetch(`${API_BASE}/api/admin/files/upload`, {
       method: 'POST',
-      headers: getSiteHeaders(),
+      headers: getHeaders(),
       body: formData,
     });
     if (!response.ok) {

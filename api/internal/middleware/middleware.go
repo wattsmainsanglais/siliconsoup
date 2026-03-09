@@ -35,6 +35,16 @@ func getAllowedOrigins(environment string) string {
 	return "https://siliconsoup.co.uk,https://www.siliconsoup.co.uk,https://shop.siliconsoup.co.uk"
 }
 
+// AdminAuth checks the Authorization: Bearer <key> header on admin routes.
+func AdminAuth(apiKey string) fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		if c.Get("Authorization") != "Bearer "+apiKey {
+			return c.Status(401).JSON(fiber.Map{"error": "unauthorized"})
+		}
+		return c.Next()
+	}
+}
+
 // SiteMiddleware reads the optional X-Site-ID header and, if present, validates it
 // against the database before injecting the value into the Fiber context as "siteID".
 // When the header is absent, the request continues with the handler's startup siteID.

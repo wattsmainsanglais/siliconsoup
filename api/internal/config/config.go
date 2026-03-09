@@ -7,10 +7,11 @@ import (
 )
 
 type Config struct {
-	DatabaseURL string
-	Port        string
-	Environment string
-	SiteID      string
+	DatabaseURL  string
+	Port         string
+	Environment  string
+	SiteID       string
+	AdminAPIKey  string
 }
 
 func Load() *Config {
@@ -21,7 +22,8 @@ func Load() *Config {
 		DatabaseURL: getEnv("DATABASE_URL", "postgres://siliconsoup:localdev@localhost:5432/siliconsoup?sslmode=disable"),
 		Port:        getEnv("PORT", "8080"),
 		Environment: getEnv("ENVIRONMENT", "development"),
-		SiteID:      getEnv("SITE_ID", ""), // Set after site is created
+		SiteID:      getEnv("SITE_ID", ""),
+		AdminAPIKey: getEnv("ADMIN_API_KEY", ""),
 	}
 }
 

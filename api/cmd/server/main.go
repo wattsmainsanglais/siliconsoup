@@ -21,6 +21,10 @@ func main() {
 	log.Printf("Starting SiliconSoup API server...")
 	log.Printf("Environment: %s", cfg.Environment)
 
+	if cfg.AdminAPIKey == "" {
+		log.Fatalf("ADMIN_API_KEY env var is required")
+	}
+
 	// Connect to database
 	if err := database.Connect(cfg.DatabaseURL); err != nil {
 		log.Fatalf("Failed to connect to database: %v", err)
@@ -89,8 +93,8 @@ func main() {
 	api.Get("/categories", categoryHandler.ListCategories)
 	api.Get("/shipping-zones", shippingHandler.ListShippingZones)
 
-	// Admin endpoints
-	admin := api.Group("/admin")
+	// Admin endpoints (protected by API key)
+	admin := api.Group("/admin", middleware.AdminAuth(cfg.AdminAPIKey))
 	admin.Get("/sites", adminHandler.ListSites)
 	admin.Post("/upload", adminHandler.UploadImage)
 

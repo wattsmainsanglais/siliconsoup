@@ -1,8 +1,16 @@
-import { NavLink, Outlet } from 'react-router-dom';
+import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useSite } from '../contexts/SiteContext';
+import { useAuth } from '../contexts/AuthContext';
 
 export default function Layout() {
   const { sites, activeSite, setActiveSite } = useSite();
+  const { logout } = useAuth();
+  const navigate = useNavigate();
+
+  function handleLogout() {
+    logout();
+    navigate('/login');
+  }
 
   return (
     <div className="layout">
@@ -52,6 +60,9 @@ export default function Layout() {
             <NavLink to="/shipping">Shipping Zones</NavLink>
           </li>
         </ul>
+        <button onClick={handleLogout} style={{ marginTop: 'auto' }}>
+          Sign out
+        </button>
       </nav>
       <main className="content">
         {/* key forces page components to unmount/remount on site switch, triggering fresh fetches */}
