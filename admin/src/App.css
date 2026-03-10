@@ -65,6 +65,29 @@ body {
   color: #fff;
 }
 
+.site-switcher {
+  margin-bottom: 20px;
+}
+
+.site-switcher label {
+  color: #aaa;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 4px;
+}
+
+.site-switcher select {
+  background: #2a2a4e;
+  color: #fff;
+  border: 1px solid #3a3a6e;
+  border-radius: 4px;
+  padding: 6px 10px;
+  font-size: 13px;
+  width: 100%;
+  cursor: pointer;
+}
+
 .content {
   flex: 1;
   padding: 30px;
