@@ -19,8 +19,8 @@ export default function Login() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-100 flex items-center justify-center">
-      <div className="bg-white rounded-lg shadow p-8 w-full max-w-sm">
+    <div className="min-h-screen bg-gray-100 flex items-center justify-center ">
+      <div className="flex flex-col items-center bg-white rounded-lg shadow p-8 max-w-sm">
         <h1 className="text-2xl font-bold text-gray-900 mb-2">SiliconSoup Admin</h1>
         <p className="text-gray-500 text-sm mb-6">Enter your API key to continue</p>
         <form onSubmit={handleSubmit} className="space-y-4">
