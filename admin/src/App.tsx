@@ -20,7 +20,6 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 function App() {
   return (
     <AuthProvider>
-      <SiteProvider>
         <BrowserRouter>
           <Routes>
             <Route path="/login" element={<Login />} />
@@ -28,7 +27,9 @@ function App() {
               path="/"
               element={
                 <ProtectedRoute>
-                  <Layout />
+                  <SiteProvider>
+                    <Layout />
+                  </SiteProvider>
                 </ProtectedRoute>
               }
             >
@@ -42,7 +43,6 @@ function App() {
             </Route>
           </Routes>
         </BrowserRouter>
-      </SiteProvider>
     </AuthProvider>
   );
 }
