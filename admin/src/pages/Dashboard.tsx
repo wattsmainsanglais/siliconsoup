@@ -19,9 +19,9 @@ export default function Dashboard() {
           shippingZones.list(),
         ]);
         setStats({
-          categories: cats.length,
-          products: prods.length,
-          shippingZones: zones.length,
+          categories: cats?.length ?? 0,
+          products: prods?.length ?? 0,
+          shippingZones: zones?.length ?? 0,
         });
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load');
