@@ -63,6 +63,11 @@ siliconsoup/
 
 ## Development
 
+### SSH into VPS
+```bash
+ssh root@109.106.188.7
+```
+
 ### Start Docker machine
 ```bash
  sudo systemctl start docker

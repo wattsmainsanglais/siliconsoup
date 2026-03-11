@@ -32,7 +32,7 @@ func getAllowedOrigins(environment string) string {
 		return "*"
 	}
 	// Production: restrict to known domains
-	return "https://siliconsoup.co.uk,https://www.siliconsoup.co.uk,https://shop.siliconsoup.co.uk"
+	return "https://siliconsoup.co.uk,https://www.siliconsoup.co.uk,https://shop.siliconsoup.co.uk,https://siliconsoup.vercel.app,https://siliconsoup-frontend-store.vercel.app,https://gardapis.vercel.app,http://localhost:5173,http://localhost:3000"
 }
 
 // AdminAuth checks the Authorization: Bearer <key> header on admin routes.
