@@ -1,0 +1,41 @@
+# =============================================================================
+# TEMPORARY — IP-based, HTTP only (no domains yet)
+# Use this until DNS is pointed at the VPS.
+# Copy to /etc/caddy/Caddyfile on the VPS.
+# =============================================================================
+
+:80 {
+    # Admin SPA — SPA fallback so React Router works on page refresh
+    root * /var/www/admin
+    try_files {path} /index.html
+    file_server
+}
+
+# =============================================================================
+# PRODUCTION — swap in this config once DNS is set up.
+# Caddy handles TLS automatically via Let's Encrypt.
+# =============================================================================
+
+# admin.siliconsoup.eu {
+#     root * /var/www/admin
+#     try_files {path} /index.html
+#     file_server
+# }
+
+# siliconsoup.eu, www.siliconsoup.eu {
+#     root * /var/www/frontend
+#     try_files {path} /index.html
+#     file_server
+# }
+
+# api.siliconsoup.eu {
+#     reverse_proxy localhost:8080
+# }
+
+# gardapis.eu {
+#     redir https://www.gardapis.eu{uri} permanent
+# }
+
+# www.gardapis.eu {
+#     reverse_proxy localhost:3000
+# }
