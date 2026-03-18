@@ -68,6 +68,22 @@ siliconsoup/
 ssh root@109.106.188.7
 ```
 
+### CI/CD Deploy Key
+A dedicated SSH key pair (`vps_deploy`) exists on Andrew's machine for GitHub Actions.
+- Private key: `~/.ssh/vps_deploy` — goes in GitHub org secret `VPS_SSH_KEY`
+- Public key: appended to `/root/.ssh/authorized_keys` on the VPS
+- Separate from Andrew's personal key so it can be revoked independently
+
+To add the public key to a new VPS or re-add if lost:
+```bash
+ssh-copy-id -i ~/.ssh/vps_deploy.pub root@109.106.188.7
+```
+
+To generate a fresh deploy key if needed:
+```bash
+ssh-keygen -t ed25519 -C "vps-deploy" -f ~/.ssh/vps_deploy -N ""
+```
+
 ### Start Docker machine
 ```bash
  sudo systemctl start docker

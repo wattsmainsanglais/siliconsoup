@@ -7,11 +7,12 @@ import (
 )
 
 type Config struct {
-	DatabaseURL  string
-	Port         string
-	Environment  string
-	SiteID       string
-	AdminAPIKey  string
+	DatabaseURL     string
+	Port            string
+	Environment     string
+	SiteID          string
+	AdminAPIKey     string
+	MyMemoryEmail   string
 }
 
 func Load() *Config {
@@ -22,8 +23,9 @@ func Load() *Config {
 		DatabaseURL: getEnv("DATABASE_URL", "postgres://siliconsoup:localdev@localhost:5432/siliconsoup?sslmode=disable"),
 		Port:        getEnv("PORT", "8080"),
 		Environment: getEnv("ENVIRONMENT", "development"),
-		SiteID:      getEnv("SITE_ID", ""),
-		AdminAPIKey: getEnv("ADMIN_API_KEY", ""),
+		SiteID:        getEnv("SITE_ID", ""),
+		AdminAPIKey:   getEnv("ADMIN_API_KEY", ""),
+		MyMemoryEmail: getEnv("MYMEMORY_EMAIL", ""),
 	}
 }
 

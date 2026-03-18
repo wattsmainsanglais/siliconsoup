@@ -26,7 +26,8 @@ func (h *ProductHandler) ListProducts(c *fiber.Ctx) error {
 			p.id, p.slug, p.name, p.short_description, p.base_price_pence,
 			p.images, p.status, p.featured,
 			cat.slug as category_slug, cat.name as category_name,
-			EXISTS(SELECT 1 FROM product_options po WHERE po.product_id = p.id) as has_options
+			EXISTS(SELECT 1 FROM product_options po WHERE po.product_id = p.id) as has_options,
+			p.translations
 		FROM products p
 		LEFT JOIN categories cat ON p.category_id = cat.id
 		WHERE p.site_id = $1 AND p.status = 'active'
@@ -45,7 +46,7 @@ func (h *ProductHandler) ListProducts(c *fiber.Ctx) error {
 		err := rows.Scan(
 			&p.ID, &p.Slug, &p.Name, &p.ShortDescription, &p.BasePricePence,
 			&p.Images, &p.Status, &p.Featured,
-			&p.CategorySlug, &p.CategoryName, &p.HasOptions,
+			&p.CategorySlug, &p.CategoryName, &p.HasOptions, &p.Translations,
 		)
 		if err != nil {
 			return c.Status(500).JSON(fiber.Map{"error": "Failed to scan product"})
@@ -69,7 +70,8 @@ func (h *ProductHandler) GetProduct(c *fiber.Ctx) error {
 		SELECT
 			p.id, p.site_id, p.category_id, p.slug, p.name, p.description,
 			p.short_description, p.base_price_pence, p.sku, p.weight_grams,
-			p.dimensions, p.images, p.status, p.featured, p.created_at, p.updated_at
+			p.dimensions, p.images, p.status, p.featured, p.translations,
+			p.created_at, p.updated_at
 		FROM products p
 		WHERE p.site_id = $1 AND p.slug = $2 AND p.status = 'active'
 	`
@@ -79,7 +81,7 @@ func (h *ProductHandler) GetProduct(c *fiber.Ctx) error {
 		&product.ID, &product.SiteID, &product.CategoryID, &product.Slug,
 		&product.Name, &product.Description, &product.ShortDescription,
 		&product.BasePricePence, &product.SKU, &product.WeightGrams,
-		&product.Dimensions, &product.Images, &product.Status, &product.Featured,
+		&product.Dimensions, &product.Images, &product.Status, &product.Featured, &product.Translations,
 		&product.CreatedAt, &product.UpdatedAt,
 	)
 	if err != nil {

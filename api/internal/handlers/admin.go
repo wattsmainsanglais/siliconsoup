@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -17,13 +18,14 @@ import (
 )
 
 type AdminHandler struct {
-	db         *pgxpool.Pool
-	siteID     string
-	uploadPath string
+	db            *pgxpool.Pool
+	siteID        string
+	uploadPath    string
+	myMemoryEmail string
 }
 
-func NewAdminHandler(db *pgxpool.Pool, siteID string, uploadPath string) *AdminHandler {
-	return &AdminHandler{db: db, siteID: siteID, uploadPath: uploadPath}
+func NewAdminHandler(db *pgxpool.Pool, siteID string, uploadPath string, myMemoryEmail string) *AdminHandler {
+	return &AdminHandler{db: db, siteID: siteID, uploadPath: uploadPath, myMemoryEmail: myMemoryEmail}
 }
 
 // ListSites returns all sites for the site switcher
@@ -588,6 +590,12 @@ func (h *AdminHandler) CreateProduct(c *fiber.Ctx) error {
 		return c.Status(500).JSON(fiber.Map{"error": "Failed to create product", "details": err.Error()})
 	}
 
+	// Seed translations with English content so the column is never NULL.
+	// The Translate button will overwrite these with real translations later.
+	if err := seedTranslations(h.db, p.ID, p.ShortDescription, p.Description); err != nil {
+		log.Printf("[translate] failed to seed translations for product %s: %v", p.ID, err)
+	}
+
 	return c.Status(201).JSON(p)
 }
 
@@ -805,6 +813,33 @@ func (h *AdminHandler) UpdateProduct(c *fiber.Ctx) error {
 	}
 
 	return c.JSON(p)
+}
+
+// TranslateProduct translates a single product's descriptions on demand.
+// Called manually from the admin UI — avoids burning MyMemory quota on every save.
+func (h *AdminHandler) TranslateProduct(c *fiber.Ctx) error {
+	id := c.Params("id")
+	ctx := context.Background()
+
+	var shortDesc *string
+	var desc *string
+	err := h.db.QueryRow(ctx,
+		"SELECT short_description, description FROM products WHERE id = $1 AND site_id = $2",
+		id, siteIDFromCtx(c, h.siteID),
+	).Scan(&shortDesc, &desc)
+	if err != nil {
+		if strings.Contains(err.Error(), "no rows") {
+			return c.Status(404).JSON(fiber.Map{"error": "Product not found"})
+		}
+		return c.Status(500).JSON(fiber.Map{"error": "Failed to fetch product", "details": err.Error()})
+	}
+
+	translationsJSON, err := translateProduct(h.db, id, shortDesc, desc, h.myMemoryEmail)
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	return c.JSON(fiber.Map{"translations": translationsJSON})
 }
 
 // ============ DELETE HANDLERS ============

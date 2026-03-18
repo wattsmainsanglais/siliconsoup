@@ -79,7 +79,7 @@ func main() {
 	productHandler := handlers.NewProductHandler(database.GetDB(), siteID)
 	categoryHandler := handlers.NewCategoryHandler(database.GetDB(), siteID)
 	shippingHandler := handlers.NewShippingHandler(database.GetDB(), siteID)
-	adminHandler := handlers.NewAdminHandler(database.GetDB(), siteID, "./uploads")
+	adminHandler := handlers.NewAdminHandler(database.GetDB(), siteID, "./uploads", cfg.MyMemoryEmail)
 	reviewHandler := handlers.NewReviewHandler(database.GetDB(), siteID)
 
 	// API routes
@@ -126,6 +126,7 @@ func main() {
 	admin.Delete("/products/:id", adminHandler.DeleteProduct)
 
 	// Product Options (linking)
+	admin.Post("/products/:id/translate", adminHandler.TranslateProduct)
 	admin.Get("/products/:id/options", adminHandler.GetProductOptions)
 	admin.Post("/product-options", adminHandler.CreateProductOption)
 	admin.Delete("/product-options/:productId/:optionGroupId", adminHandler.DeleteProductOption)

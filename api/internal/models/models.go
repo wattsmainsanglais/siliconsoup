@@ -47,6 +47,7 @@ type Product struct {
 	Images           json.RawMessage `json:"images"`
 	Status           string          `json:"status"`
 	Featured         bool            `json:"featured"`
+	Translations     json.RawMessage `json:"translations,omitempty"`
 	CreatedAt        time.Time       `json:"created_at"`
 	UpdatedAt        time.Time       `json:"updated_at"`
 
@@ -69,6 +70,7 @@ type ProductListItem struct {
 	CategorySlug     *string         `json:"category_slug,omitempty"`
 	CategoryName     *string         `json:"category_name,omitempty"`
 	HasOptions       bool            `json:"has_options"`
+	Translations     json.RawMessage `json:"translations,omitempty"`
 }
 
 // OptionGroup represents a group of options (e.g., "Configuration")
