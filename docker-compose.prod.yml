@@ -13,6 +13,7 @@ services:
       PORT: "8080"
       ENVIRONMENT: production
       ADMIN_API_KEY: ${ADMIN_API_KEY}
+      MYMEMORY_EMAIL: ${MYMEMORY_EMAIL}
     ports:
       - "8080:8080"
     restart: always
