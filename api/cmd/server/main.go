@@ -59,7 +59,7 @@ func main() {
 	})
 
 	// Setup middleware
-	middleware.SetupMiddleware(app, cfg.Environment)
+	middleware.SetupMiddleware(app, cfg.Environment, cfg.NtfyTopic)
 
 	// Site-switching middleware — reads optional X-Site-ID header on every request
 	app.Use(middleware.SiteMiddleware(database.GetDB()))

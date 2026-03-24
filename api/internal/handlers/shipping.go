@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"log"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -30,6 +31,7 @@ func (h *ShippingHandler) ListShippingZones(c *fiber.Ctx) error {
 
 	rows, err := h.db.Query(ctx, query, siteIDFromCtx(c, h.siteID))
 	if err != nil {
+		log.Printf("[shipping] ListShippingZones query: %v", err)
 		return c.Status(500).JSON(fiber.Map{"error": "Failed to fetch shipping zones"})
 	}
 	defer rows.Close()
@@ -42,6 +44,7 @@ func (h *ShippingHandler) ListShippingZones(c *fiber.Ctx) error {
 			&zone.BaseRatePence, &zone.PerItemRatePence, &zone.FreeThresholdPence, &zone.CreatedAt,
 		)
 		if err != nil {
+			log.Printf("[shipping] ListShippingZones scan: %v", err)
 			return c.Status(500).JSON(fiber.Map{"error": "Failed to scan shipping zone"})
 		}
 		zones = append(zones, zone)

@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"log"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -36,6 +37,7 @@ func (h *ProductHandler) ListProducts(c *fiber.Ctx) error {
 
 	rows, err := h.db.Query(ctx, query, siteIDFromCtx(c, h.siteID))
 	if err != nil {
+		log.Printf("[products] ListProducts query: %v", err)
 		return c.Status(500).JSON(fiber.Map{"error": "Failed to fetch products"})
 	}
 	defer rows.Close()
@@ -49,6 +51,7 @@ func (h *ProductHandler) ListProducts(c *fiber.Ctx) error {
 			&p.CategorySlug, &p.CategoryName, &p.HasOptions, &p.Translations,
 		)
 		if err != nil {
+			log.Printf("[products] ListProducts scan: %v", err)
 			return c.Status(500).JSON(fiber.Map{"error": "Failed to scan product"})
 		}
 		products = append(products, p)
@@ -113,6 +116,7 @@ func (h *ProductHandler) GetProduct(c *fiber.Ctx) error {
 
 	ogRows, err := h.db.Query(ctx, optionGroupsQuery, product.ID)
 	if err != nil {
+		log.Printf("[products] GetProduct option groups query: %v", err)
 		return c.Status(500).JSON(fiber.Map{"error": "Failed to fetch option groups"})
 	}
 	defer ogRows.Close()

@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"log"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -31,6 +32,7 @@ func (h *CategoryHandler) ListCategories(c *fiber.Ctx) error {
 
 	rows, err := h.db.Query(ctx, query, siteIDFromCtx(c, h.siteID))
 	if err != nil {
+		log.Printf("[categories] ListCategories query: %v", err)
 		return c.Status(500).JSON(fiber.Map{"error": "Failed to fetch categories"})
 	}
 	defer rows.Close()
@@ -43,6 +45,7 @@ func (h *CategoryHandler) ListCategories(c *fiber.Ctx) error {
 			&cat.Description, &cat.ParentID, &cat.SortOrder, &cat.CreatedAt,
 		)
 		if err != nil {
+			log.Printf("[categories] ListCategories scan: %v", err)
 			return c.Status(500).JSON(fiber.Map{"error": "Failed to scan category"})
 		}
 		categories = append(categories, cat)

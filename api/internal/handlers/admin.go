@@ -34,6 +34,7 @@ func (h *AdminHandler) ListSites(c *fiber.Ctx) error {
 
 	rows, err := h.db.Query(ctx, `SELECT id, slug, name, currency FROM sites ORDER BY name`)
 	if err != nil {
+		log.Printf("[admin] ListSites query: %v", err)
 		return c.Status(500).JSON(fiber.Map{"error": "Failed to fetch sites"})
 	}
 	defer rows.Close()
@@ -87,6 +88,7 @@ func (h *AdminHandler) UploadImage(c *fiber.Ctx) error {
 
 	// Ensure upload directory exists
 	if err := os.MkdirAll(uploadDir, 0755); err != nil {
+		log.Printf("[admin] UploadImage mkdir: %v", err)
 		return c.Status(500).JSON(fiber.Map{"error": "Failed to create upload directory"})
 	}
 
@@ -97,17 +99,20 @@ func (h *AdminHandler) UploadImage(c *fiber.Ctx) error {
 	// Save file
 	src, err := file.Open()
 	if err != nil {
+		log.Printf("[admin] UploadImage open: %v", err)
 		return c.Status(500).JSON(fiber.Map{"error": "Failed to open uploaded file"})
 	}
 	defer src.Close()
 
 	dst, err := os.Create(destPath)
 	if err != nil {
+		log.Printf("[admin] UploadImage create: %v", err)
 		return c.Status(500).JSON(fiber.Map{"error": "Failed to save file"})
 	}
 	defer dst.Close()
 
 	if _, err := io.Copy(dst, src); err != nil {
+		log.Printf("[admin] UploadImage write: %v", err)
 		return c.Status(500).JSON(fiber.Map{"error": "Failed to write file"})
 	}
 
@@ -194,6 +199,7 @@ func (h *AdminHandler) ListImages(c *fiber.Ctx) error {
 	rows, err := h.db.Query(ctx,
 		"SELECT id, filename, url, COALESCE(alt, ''), size_bytes, created_at FROM images ORDER BY created_at DESC")
 	if err != nil {
+		log.Printf("[admin] ListImages query: %v", err)
 		return c.Status(500).JSON(fiber.Map{"error": "Failed to fetch images"})
 	}
 	defer rows.Close()
@@ -238,6 +244,7 @@ func (h *AdminHandler) UploadToStore(c *fiber.Ctx) error {
 
 	uploadDir := filepath.Join(h.uploadPath, "products")
 	if err := os.MkdirAll(uploadDir, 0755); err != nil {
+		log.Printf("[admin] UploadToStore mkdir: %v", err)
 		return c.Status(500).JSON(fiber.Map{"error": "Failed to create upload directory"})
 	}
 
@@ -246,17 +253,20 @@ func (h *AdminHandler) UploadToStore(c *fiber.Ctx) error {
 
 	src, err := file.Open()
 	if err != nil {
+		log.Printf("[admin] UploadToStore open: %v", err)
 		return c.Status(500).JSON(fiber.Map{"error": "Failed to open uploaded file"})
 	}
 	defer src.Close()
 
 	dst, err := os.Create(destPath)
 	if err != nil {
+		log.Printf("[admin] UploadToStore create: %v", err)
 		return c.Status(500).JSON(fiber.Map{"error": "Failed to save file"})
 	}
 	defer dst.Close()
 
 	if _, err := io.Copy(dst, src); err != nil {
+		log.Printf("[admin] UploadToStore write: %v", err)
 		return c.Status(500).JSON(fiber.Map{"error": "Failed to write file"})
 	}
 
@@ -273,6 +283,7 @@ func (h *AdminHandler) UploadToStore(c *fiber.Ctx) error {
 	).Scan(&img.ID, &img.Filename, &img.URL, &img.Alt, &img.SizeBytes, &img.CreatedAt)
 
 	if err != nil {
+		log.Printf("[admin] UploadToStore DB insert: %v", err)
 		return c.Status(500).JSON(fiber.Map{"error": "Failed to save image record", "details": err.Error()})
 	}
 
@@ -294,6 +305,7 @@ func (h *AdminHandler) DeleteImage(c *fiber.Ctx) error {
 	// Delete from images table
 	_, err = h.db.Exec(ctx, "DELETE FROM images WHERE id = $1", id)
 	if err != nil {
+		log.Printf("[admin] DeleteImage exec: %v", err)
 		return c.Status(500).JSON(fiber.Map{"error": "Failed to delete image record"})
 	}
 
@@ -336,6 +348,7 @@ func (h *AdminHandler) ListProducts(c *fiber.Ctx) error {
 
 	rows, err := h.db.Query(ctx, query, siteIDFromCtx(c, h.siteID))
 	if err != nil {
+		log.Printf("[admin] ListProducts query: %v", err)
 		return c.Status(500).JSON(fiber.Map{"error": "Failed to fetch products"})
 	}
 	defer rows.Close()
@@ -364,6 +377,7 @@ func (h *AdminHandler) ListProducts(c *fiber.Ctx) error {
 		err := rows.Scan(&p.ID, &p.Slug, &p.Name, &p.Description, &p.ShortDescription, &p.BasePricePence,
 			&p.WeightGrams, &p.Dimensions, &p.Images, &p.Status, &p.Featured, &p.CategoryID, &p.CategorySlug, &p.CategoryName)
 		if err != nil {
+			log.Printf("[admin] ListProducts scan: %v", err)
 			return c.Status(500).JSON(fiber.Map{"error": "Failed to scan product", "details": err.Error()})
 		}
 
@@ -406,6 +420,7 @@ func (h *AdminHandler) CreateCategory(c *fiber.Ctx) error {
 		if strings.Contains(err.Error(), "duplicate") {
 			return c.Status(409).JSON(fiber.Map{"error": "Category with this slug already exists"})
 		}
+		log.Printf("[admin] CreateCategory insert: %v", err)
 		return c.Status(500).JSON(fiber.Map{"error": "Failed to create category", "details": err.Error()})
 	}
 
@@ -425,6 +440,7 @@ func (h *AdminHandler) ListOptionGroups(c *fiber.Ctx) error {
 
 	rows, err := h.db.Query(ctx, query, siteIDFromCtx(c, h.siteID))
 	if err != nil {
+		log.Printf("[admin] ListOptionGroups query: %v", err)
 		return c.Status(500).JSON(fiber.Map{"error": "Failed to fetch option groups"})
 	}
 	defer rows.Close()
@@ -434,6 +450,7 @@ func (h *AdminHandler) ListOptionGroups(c *fiber.Ctx) error {
 		var og models.OptionGroup
 		err := rows.Scan(&og.ID, &og.SiteID, &og.Name, &og.Type, &og.Required, &og.CreatedAt)
 		if err != nil {
+			log.Printf("[admin] ListOptionGroups scan: %v", err)
 			return c.Status(500).JSON(fiber.Map{"error": "Failed to scan option group"})
 		}
 		groups = append(groups, og)
@@ -500,6 +517,7 @@ func (h *AdminHandler) CreateOptionGroup(c *fiber.Ctx) error {
 	).Scan(&og.ID, &og.SiteID, &og.Name, &og.Type, &og.Required, &og.CreatedAt)
 
 	if err != nil {
+		log.Printf("[admin] CreateOptionGroup insert: %v", err)
 		return c.Status(500).JSON(fiber.Map{"error": "Failed to create option group", "details": err.Error()})
 	}
 
@@ -535,6 +553,7 @@ func (h *AdminHandler) CreateOptionValue(c *fiber.Ctx) error {
 		if strings.Contains(err.Error(), "foreign key") {
 			return c.Status(400).JSON(fiber.Map{"error": "Invalid option_group_id"})
 		}
+		log.Printf("[admin] CreateOptionValue insert: %v", err)
 		return c.Status(500).JSON(fiber.Map{"error": "Failed to create option value", "details": err.Error()})
 	}
 
@@ -587,6 +606,7 @@ func (h *AdminHandler) CreateProduct(c *fiber.Ctx) error {
 		if strings.Contains(err.Error(), "foreign key") {
 			return c.Status(400).JSON(fiber.Map{"error": "Invalid category_id"})
 		}
+		log.Printf("[admin] CreateProduct insert: %v", err)
 		return c.Status(500).JSON(fiber.Map{"error": "Failed to create product", "details": err.Error()})
 	}
 
@@ -631,6 +651,7 @@ func (h *AdminHandler) CreateProductOption(c *fiber.Ctx) error {
 		if strings.Contains(err.Error(), "foreign key") {
 			return c.Status(400).JSON(fiber.Map{"error": "Invalid product_id or option_group_id"})
 		}
+		log.Printf("[admin] CreateProductOption insert: %v", err)
 		return c.Status(500).JSON(fiber.Map{"error": "Failed to link product to option group", "details": err.Error()})
 	}
 
@@ -673,6 +694,7 @@ func (h *AdminHandler) UpdateCategory(c *fiber.Ctx) error {
 		if strings.Contains(err.Error(), "no rows") {
 			return c.Status(404).JSON(fiber.Map{"error": "Category not found"})
 		}
+		log.Printf("[admin] UpdateCategory exec: %v", err)
 		return c.Status(500).JSON(fiber.Map{"error": "Failed to update category", "details": err.Error()})
 	}
 
@@ -707,6 +729,7 @@ func (h *AdminHandler) UpdateOptionGroup(c *fiber.Ctx) error {
 		if strings.Contains(err.Error(), "no rows") {
 			return c.Status(404).JSON(fiber.Map{"error": "Option group not found"})
 		}
+		log.Printf("[admin] UpdateOptionGroup exec: %v", err)
 		return c.Status(500).JSON(fiber.Map{"error": "Failed to update option group", "details": err.Error()})
 	}
 
@@ -750,6 +773,7 @@ func (h *AdminHandler) UpdateOptionValue(c *fiber.Ctx) error {
 		if strings.Contains(err.Error(), "no rows") {
 			return c.Status(404).JSON(fiber.Map{"error": "Option value not found"})
 		}
+		log.Printf("[admin] UpdateOptionValue exec: %v", err)
 		return c.Status(500).JSON(fiber.Map{"error": "Failed to update option value", "details": err.Error()})
 	}
 
@@ -809,6 +833,7 @@ func (h *AdminHandler) UpdateProduct(c *fiber.Ctx) error {
 		if strings.Contains(err.Error(), "no rows") {
 			return c.Status(404).JSON(fiber.Map{"error": "Product not found"})
 		}
+		log.Printf("[admin] UpdateProduct exec: %v", err)
 		return c.Status(500).JSON(fiber.Map{"error": "Failed to update product", "details": err.Error()})
 	}
 
@@ -831,11 +856,13 @@ func (h *AdminHandler) TranslateProduct(c *fiber.Ctx) error {
 		if strings.Contains(err.Error(), "no rows") {
 			return c.Status(404).JSON(fiber.Map{"error": "Product not found"})
 		}
+		log.Printf("[admin] TranslateProduct fetch: %v", err)
 		return c.Status(500).JSON(fiber.Map{"error": "Failed to fetch product", "details": err.Error()})
 	}
 
 	translationsJSON, err := translateProduct(h.db, id, shortDesc, desc, h.myMemoryEmail)
 	if err != nil {
+		log.Printf("[admin] TranslateProduct translate: %v", err)
 		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
 	}
 
@@ -857,6 +884,7 @@ func (h *AdminHandler) DeleteCategory(c *fiber.Ctx) error {
 		if strings.Contains(err.Error(), "foreign key") {
 			return c.Status(409).JSON(fiber.Map{"error": "Cannot delete category with products or subcategories"})
 		}
+		log.Printf("[admin] DeleteCategory exec: %v", err)
 		return c.Status(500).JSON(fiber.Map{"error": "Failed to delete category"})
 	}
 
@@ -880,6 +908,7 @@ func (h *AdminHandler) DeleteOptionGroup(c *fiber.Ctx) error {
 		if strings.Contains(err.Error(), "foreign key") {
 			return c.Status(409).JSON(fiber.Map{"error": "Cannot delete option group with values or linked products"})
 		}
+		log.Printf("[admin] DeleteOptionGroup exec: %v", err)
 		return c.Status(500).JSON(fiber.Map{"error": "Failed to delete option group"})
 	}
 
@@ -898,6 +927,7 @@ func (h *AdminHandler) DeleteOptionValue(c *fiber.Ctx) error {
 	result, err := h.db.Exec(ctx, "DELETE FROM option_values WHERE id = $1", id)
 
 	if err != nil {
+		log.Printf("[admin] DeleteOptionValue exec: %v", err)
 		return c.Status(500).JSON(fiber.Map{"error": "Failed to delete option value"})
 	}
 
@@ -936,6 +966,7 @@ func (h *AdminHandler) DeleteProduct(c *fiber.Ctx) error {
 		id, siteIDFromCtx(c, h.siteID))
 
 	if err != nil {
+		log.Printf("[admin] DeleteProduct exec: %v", err)
 		return c.Status(500).JSON(fiber.Map{"error": "Failed to delete product"})
 	}
 
@@ -990,6 +1021,7 @@ func (h *AdminHandler) GetProductOptions(c *fiber.Ctx) error {
 
 	rows, err := h.db.Query(ctx, query, productID)
 	if err != nil {
+		log.Printf("[admin] GetProductOptions query: %v", err)
 		return c.Status(500).JSON(fiber.Map{"error": "Failed to fetch product options"})
 	}
 	defer rows.Close()
@@ -1021,6 +1053,7 @@ func (h *AdminHandler) DeleteProductOption(c *fiber.Ctx) error {
 		productID, optionGroupID)
 
 	if err != nil {
+		log.Printf("[admin] DeleteProductOption exec: %v", err)
 		return c.Status(500).JSON(fiber.Map{"error": "Failed to delete product option link"})
 	}
 

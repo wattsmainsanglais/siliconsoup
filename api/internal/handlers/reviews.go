@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"log"
 	"strings"
 
 	"github.com/gofiber/fiber/v2"
@@ -43,6 +44,7 @@ func (h *ReviewHandler) ListProductReviews(c *fiber.Ctx) error {
 		productID,
 	)
 	if err != nil {
+		log.Printf("[reviews] ListProductReviews query: %v", err)
 		return c.Status(500).JSON(fiber.Map{"error": "Failed to fetch reviews"})
 	}
 	defer rows.Close()
@@ -106,6 +108,7 @@ func (h *ReviewHandler) CreateReview(c *fiber.Ctx) error {
 		siteID, strings.ToLower(req.CustomerEmail), productID,
 	).Scan(&hasPurchased)
 	if err != nil {
+		log.Printf("[reviews] CreateReview verify purchase: %v", err)
 		return c.Status(500).JSON(fiber.Map{"error": "Failed to verify purchase"})
 	}
 	if !hasPurchased {
@@ -126,6 +129,7 @@ func (h *ReviewHandler) CreateReview(c *fiber.Ctx) error {
 		if strings.Contains(err.Error(), "unique") {
 			return c.Status(409).JSON(fiber.Map{"error": "You have already reviewed this product"})
 		}
+		log.Printf("[reviews] CreateReview insert: %v", err)
 		return c.Status(500).JSON(fiber.Map{"error": "Failed to submit review", "details": err.Error()})
 	}
 
@@ -157,6 +161,7 @@ func (h *AdminHandler) ListReviews(c *fiber.Ctx) error {
 
 	rows, err := h.db.Query(ctx, query, args...)
 	if err != nil {
+		log.Printf("[reviews] admin ListReviews query: %v", err)
 		return c.Status(500).JSON(fiber.Map{"error": "Failed to fetch reviews"})
 	}
 	defer rows.Close()
@@ -197,6 +202,7 @@ func (h *AdminHandler) RemoveReview(c *fiber.Ctx) error {
 		id, siteIDFromCtx(c, h.siteID),
 	)
 	if err != nil {
+		log.Printf("[reviews] RemoveReview exec: %v", err)
 		return c.Status(500).JSON(fiber.Map{"error": "Failed to remove review"})
 	}
 	if result.RowsAffected() == 0 {

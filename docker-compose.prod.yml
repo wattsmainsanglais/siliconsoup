@@ -6,6 +6,11 @@ services:
       POSTGRES_DB: siliconsoup
     ports: []
     restart: always
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "3"
 
   api:
     environment:
@@ -14,6 +19,12 @@ services:
       ENVIRONMENT: production
       ADMIN_API_KEY: ${ADMIN_API_KEY}
       MYMEMORY_EMAIL: ${MYMEMORY_EMAIL}
+      NTFY_TOPIC: ${NTFY_TOPIC}
     ports:
       - "8080:8080"
     restart: always
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

@@ -7,12 +7,13 @@ import (
 )
 
 type Config struct {
-	DatabaseURL     string
-	Port            string
-	Environment     string
-	SiteID          string
-	AdminAPIKey     string
-	MyMemoryEmail   string
+	DatabaseURL   string
+	Port          string
+	Environment   string
+	SiteID        string
+	AdminAPIKey   string
+	MyMemoryEmail string
+	NtfyTopic     string
 }
 
 func Load() *Config {
@@ -26,6 +27,7 @@ func Load() *Config {
 		SiteID:        getEnv("SITE_ID", ""),
 		AdminAPIKey:   getEnv("ADMIN_API_KEY", ""),
 		MyMemoryEmail: getEnv("MYMEMORY_EMAIL", ""),
+		NtfyTopic:     getEnv("NTFY_TOPIC", ""),
 	}
 }
 

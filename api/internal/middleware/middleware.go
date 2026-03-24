@@ -2,7 +2,10 @@ package middleware
 
 import (
 	"context"
+	"fmt"
 	"log"
+	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
@@ -12,9 +15,11 @@ import (
 )
 
 // SetupMiddleware configures all middleware for the application
-func SetupMiddleware(app *fiber.App, environment string) {
-	// Recover from panics
-	app.Use(recover.New())
+func SetupMiddleware(app *fiber.App, environment string, ntfyTopic string) {
+	// Recover from panics — log stack trace so panics are visible in Docker logs
+	app.Use(recover.New(recover.Config{
+		EnableStackTrace: true,
+	}))
 
 	// CORS configuration
 	app.Use(cors.New(cors.Config{
@@ -23,8 +28,8 @@ func SetupMiddleware(app *fiber.App, environment string) {
 		AllowHeaders: "Origin, Content-Type, Accept, Authorization, X-Site-ID",
 	}))
 
-	// Request logging
-	app.Use(requestLogger())
+	// Request logging + ntfy push alert on 5xx
+	app.Use(requestLogger(ntfyTopic))
 }
 
 func getAllowedOrigins(environment string) string {
@@ -66,20 +71,41 @@ func SiteMiddleware(db *pgxpool.Pool) fiber.Handler {
 	}
 }
 
-func requestLogger() fiber.Handler {
+func requestLogger(ntfyTopic string) fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		start := time.Now()
 
 		err := c.Next()
 
 		duration := time.Since(start)
-		log.Printf("%s %s %d %v",
-			c.Method(),
-			c.Path(),
-			c.Response().StatusCode(),
-			duration,
-		)
+		status := c.Response().StatusCode()
+		log.Printf("%s %s %d %v", c.Method(), c.Path(), status, duration)
+
+		if status >= 500 && ntfyTopic != "" {
+			go sendAlert(ntfyTopic, fmt.Sprintf("%s %s returned %d", c.Method(), c.Path(), status))
+		}
 
 		return err
 	}
+}
+
+// sendAlert posts a push notification to ntfy.sh for 5xx errors.
+// Runs in a goroutine — never blocks the HTTP response.
+func sendAlert(topic, message string) {
+	req, err := http.NewRequest("POST", "https://ntfy.sh/"+topic, strings.NewReader(message))
+	if err != nil {
+		log.Printf("[ntfy] failed to build request: %v", err)
+		return
+	}
+	req.Header.Set("Title", "SiliconSoup API Error")
+	req.Header.Set("Priority", "high")
+	req.Header.Set("Tags", "rotating_light")
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		log.Printf("[ntfy] failed to send alert: %v", err)
+		return
+	}
+	resp.Body.Close()
 }

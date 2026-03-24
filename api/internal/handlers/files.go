@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -27,6 +28,7 @@ func (h *AdminHandler) ListProductFiles(c *fiber.Ctx) error {
 		productID,
 	)
 	if err != nil {
+		log.Printf("[files] ListProductFiles query: %v", err)
 		return c.Status(500).JSON(fiber.Map{"error": "Failed to fetch product files"})
 	}
 	defer rows.Close()
@@ -75,6 +77,7 @@ func (h *AdminHandler) CreateProductFile(c *fiber.Ctx) error {
 		if strings.Contains(err.Error(), "foreign key") {
 			return c.Status(400).JSON(fiber.Map{"error": "Invalid product_id"})
 		}
+		log.Printf("[files] CreateProductFile insert: %v", err)
 		return c.Status(500).JSON(fiber.Map{"error": "Failed to create product file", "details": err.Error()})
 	}
 
@@ -96,6 +99,7 @@ func (h *AdminHandler) DeleteProductFile(c *fiber.Ctx) error {
 
 	_, err = h.db.Exec(ctx, "DELETE FROM product_files WHERE id = $1", id)
 	if err != nil {
+		log.Printf("[files] DeleteProductFile exec: %v", err)
 		return c.Status(500).JSON(fiber.Map{"error": "Failed to delete file record"})
 	}
 
@@ -127,6 +131,7 @@ func (h *AdminHandler) UploadFile(c *fiber.Ctx) error {
 
 	uploadDir := filepath.Join(h.uploadPath, "files")
 	if err := os.MkdirAll(uploadDir, 0755); err != nil {
+		log.Printf("[files] UploadFile mkdir: %v", err)
 		return c.Status(500).JSON(fiber.Map{"error": "Failed to create upload directory"})
 	}
 
@@ -135,17 +140,20 @@ func (h *AdminHandler) UploadFile(c *fiber.Ctx) error {
 
 	src, err := file.Open()
 	if err != nil {
+		log.Printf("[files] UploadFile open: %v", err)
 		return c.Status(500).JSON(fiber.Map{"error": "Failed to open uploaded file"})
 	}
 	defer src.Close()
 
 	dst, err := os.Create(destPath)
 	if err != nil {
+		log.Printf("[files] UploadFile create: %v", err)
 		return c.Status(500).JSON(fiber.Map{"error": "Failed to save file"})
 	}
 	defer dst.Close()
 
 	if _, err := io.Copy(dst, src); err != nil {
+		log.Printf("[files] UploadFile write: %v", err)
 		return c.Status(500).JSON(fiber.Map{"error": "Failed to write file"})
 	}
 
