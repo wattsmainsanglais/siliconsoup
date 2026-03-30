@@ -3,10 +3,12 @@
 Custom e-commerce platform for [SiliconSoup](https://siliconsoup.co.uk), featuring a flexible product options system.
 
 ## Quick Start
+-- work in dev branch
 
 ### Prerequisites
 - Docker and Docker Compose
 - Go 1.22+ (for local development)
+
 
 ### Development
 
