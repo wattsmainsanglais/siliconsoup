@@ -81,6 +81,12 @@ func main() {
 	shippingHandler := handlers.NewShippingHandler(database.GetDB(), siteID)
 	adminHandler := handlers.NewAdminHandler(database.GetDB(), siteID, "./uploads", cfg.MyMemoryEmail)
 	reviewHandler := handlers.NewReviewHandler(database.GetDB(), siteID)
+	orderHandler := handlers.NewOrderHandler(
+		database.GetDB(), siteID,
+		cfg.PayPalClientID, cfg.PayPalClientSecret, cfg.PayPalEnv,
+		cfg.SmtpHost, cfg.SmtpPort, cfg.SmtpUser, cfg.SmtpPass,
+		cfg.OrderNotificationEmail,
+	)
 
 	// API routes
 	api := app.Group("/api")
@@ -92,6 +98,10 @@ func main() {
 	api.Post("/products/:slug/reviews", reviewHandler.CreateReview)
 	api.Get("/categories", categoryHandler.ListCategories)
 	api.Get("/shipping-zones", shippingHandler.ListShippingZones)
+
+	// PayPal checkout (public — no API key needed, but PayPal credentials required server-side)
+	api.Post("/paypal/create-order", orderHandler.CreatePayPalOrder)
+	api.Post("/paypal/capture-order", orderHandler.CapturePayPalOrder)
 
 	// Admin endpoints (protected by API key)
 	admin := api.Group("/admin", middleware.AdminAuth(cfg.AdminAPIKey))
@@ -140,6 +150,11 @@ func main() {
 	// Reviews
 	admin.Get("/reviews", adminHandler.ListReviews)
 	admin.Delete("/reviews/:id", adminHandler.RemoveReview)
+
+	// Orders
+	admin.Get("/orders", orderHandler.ListOrders)
+	admin.Get("/orders/:id", orderHandler.GetOrder)
+	admin.Put("/orders/:id", orderHandler.UpdateOrder)
 
 	// Graceful shutdown
 	go func() {
