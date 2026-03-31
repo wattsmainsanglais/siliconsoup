@@ -9,41 +9,33 @@ import (
 	"io"
 	"log"
 	"net/http"
-	"net/smtp"
 	"strings"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/siliconsoup/api/internal/mailer"
 	"github.com/siliconsoup/api/internal/models"
 )
 
 type OrderHandler struct {
-	db                     *pgxpool.Pool
-	siteID                 string
-	paypalClientID         string
-	paypalClientSecret     string
-	paypalEnv              string
-	smtpHost               string
-	smtpPort               string
-	smtpUser               string
-	smtpPass               string
-	orderNotificationEmail string
+	db                 *pgxpool.Pool
+	siteID             string
+	paypalClientID     string
+	paypalClientSecret string
+	paypalEnv          string
+	mailer             *mailer.Mailer
 }
 
-func NewOrderHandler(db *pgxpool.Pool, siteID, paypalClientID, paypalClientSecret, paypalEnv, smtpHost, smtpPort, smtpUser, smtpPass, orderNotificationEmail string) *OrderHandler {
+func NewOrderHandler(db *pgxpool.Pool, siteID, paypalClientID, paypalClientSecret, paypalEnv string, m *mailer.Mailer) *OrderHandler {
 	return &OrderHandler{
-		db:                     db,
-		siteID:                 siteID,
-		paypalClientID:         paypalClientID,
-		paypalClientSecret:     paypalClientSecret,
-		paypalEnv:              paypalEnv,
-		smtpHost:               smtpHost,
-		smtpPort:               smtpPort,
-		smtpUser:               smtpUser,
-		smtpPass:               smtpPass,
-		orderNotificationEmail: orderNotificationEmail,
+		db:                 db,
+		siteID:             siteID,
+		paypalClientID:     paypalClientID,
+		paypalClientSecret: paypalClientSecret,
+		paypalEnv:          paypalEnv,
+		mailer:             m,
 	}
 }
 
@@ -289,8 +281,8 @@ func (h *OrderHandler) CapturePayPalOrder(c *fiber.Ctx) error {
 	}
 
 	// Send notification email (non-blocking)
-	if h.smtpHost != "" && h.orderNotificationEmail != "" {
-		go h.sendOrderNotification(order, req, captureID)
+	if h.mailer.Enabled() {
+		go h.mailer.SendOrderNotification(order, req.CustomerName, req.CustomerEmail, captureID)
 	}
 
 	return c.JSON(fiber.Map{
@@ -381,7 +373,7 @@ func (h *OrderHandler) GetOrder(c *fiber.Ctx) error {
 }
 
 type UpdateOrderRequest struct {
-	Status         *string `json:"status"`          // pending | processing | shipped | delivered | cancelled
+	Status         *string `json:"status"` // pending | processing | shipped | delivered | cancelled
 	TrackingNumber *string `json:"tracking_number"`
 	Notes          *string `json:"notes"`
 }
@@ -395,6 +387,16 @@ func (h *OrderHandler) UpdateOrder(c *fiber.Ctx) error {
 	}
 
 	ctx := context.Background()
+
+	// Fetch current status before update so we can detect changes
+	var prevStatus string
+	err := h.db.QueryRow(ctx,
+		`SELECT status FROM orders WHERE id = $1 AND site_id = $2`,
+		id, siteIDFromCtx(c, h.siteID),
+	).Scan(&prevStatus)
+	if err != nil {
+		return c.Status(404).JSON(fiber.Map{"error": "Order not found"})
+	}
 
 	result, err := h.db.Exec(ctx,
 		`UPDATE orders SET
@@ -414,40 +416,35 @@ func (h *OrderHandler) UpdateOrder(c *fiber.Ctx) error {
 		return c.Status(404).JSON(fiber.Map{"error": "Order not found"})
 	}
 
-	return h.GetOrder(c)
-}
-
-// ============ EMAIL ============
-
-func (h *OrderHandler) sendOrderNotification(order models.Order, req CapturePayPalOrderRequest, captureID string) {
-	total := fmt.Sprintf("%.2f %s", float64(req.TotalPence)/100, order.Currency)
-
-	subject := fmt.Sprintf("New order %s — %s", order.OrderNumber, total)
-	body := fmt.Sprintf(`New order received on SiliconSoup.
-
-Order:    %s
-Customer: %s <%s>
-Total:    %s
-PayPal:   %s
-
-Log in to the admin to view full details and mark as shipped.
-https://siliconsoup.vercel.app/orders
-`,
-		order.OrderNumber,
-		req.CustomerName, req.CustomerEmail,
-		total,
-		captureID,
+	// Re-fetch updated order
+	var updated models.Order
+	err = h.db.QueryRow(ctx,
+		`SELECT id, site_id, order_number, customer_email, customer_name, customer_phone,
+		        shipping_address, items,
+		        subtotal_pence, shipping_pence, vat_pence, total_pence,
+		        currency, payment_status, payment_method, payment_txn_id,
+		        status, tracking_number, notes, created_at, updated_at
+		 FROM orders WHERE id = $1 AND site_id = $2`,
+		id, siteIDFromCtx(c, h.siteID),
+	).Scan(
+		&updated.ID, &updated.SiteID, &updated.OrderNumber, &updated.CustomerEmail, &updated.CustomerName, &updated.CustomerPhone,
+		&updated.ShippingAddress, &updated.Items,
+		&updated.SubtotalPence, &updated.ShippingPence, &updated.VATPence, &updated.TotalPence,
+		&updated.Currency, &updated.PaymentStatus, &updated.PaymentMethod, &updated.PaymentTxnID,
+		&updated.Status, &updated.TrackingNumber, &updated.Notes, &updated.CreatedAt, &updated.UpdatedAt,
 	)
-
-	msg := fmt.Sprintf("From: %s\r\nTo: %s\r\nSubject: %s\r\n\r\n%s",
-		h.smtpUser, h.orderNotificationEmail, subject, body)
-
-	auth := smtp.PlainAuth("", h.smtpUser, h.smtpPass, h.smtpHost)
-	addr := h.smtpHost + ":" + h.smtpPort
-
-	if err := smtp.SendMail(addr, auth, h.smtpUser, []string{h.orderNotificationEmail}, []byte(msg)); err != nil {
-		log.Printf("[orders] sendOrderNotification: %v", err)
-	} else {
-		log.Printf("[orders] notification email sent for %s", order.OrderNumber)
+	if err != nil {
+		log.Printf("[orders] UpdateOrder re-fetch: %v", err)
+		return c.Status(500).JSON(fiber.Map{"error": "Failed to fetch updated order"})
 	}
+
+	// Fire status email if status changed to shipped or delivered
+	if h.mailer.Enabled() && req.Status != nil && *req.Status != prevStatus {
+		if updated.Status == "shipped" || updated.Status == "delivered" {
+			go h.mailer.SendStatusUpdate(updated)
+		}
+	}
+
+	return c.JSON(updated)
 }
+
