@@ -1,6 +1,7 @@
 package mailer
 
 import (
+	"crypto/tls"
 	"fmt"
 	"log"
 	"net/smtp"
@@ -38,6 +39,40 @@ func (m *Mailer) send(to, subject, body string) error {
 	msg := fmt.Sprintf("From: %s\r\nTo: %s\r\nSubject: %s\r\n\r\n%s",
 		m.from, to, subject, body)
 	auth := smtp.PlainAuth("", m.user, m.pass, m.host)
+
+	// Port 465 uses implicit TLS (SMTPS); port 587 uses STARTTLS
+	if m.port == "465" {
+		tlsConf := &tls.Config{ServerName: m.host}
+		conn, err := tls.Dial("tcp", m.host+":465", tlsConf)
+		if err != nil {
+			return fmt.Errorf("tls dial: %w", err)
+		}
+		defer conn.Close()
+		client, err := smtp.NewClient(conn, m.host)
+		if err != nil {
+			return fmt.Errorf("smtp client: %w", err)
+		}
+		defer client.Close()
+		if err = client.Auth(auth); err != nil {
+			return fmt.Errorf("smtp auth: %w", err)
+		}
+		if err = client.Mail(m.from); err != nil {
+			return err
+		}
+		if err = client.Rcpt(to); err != nil {
+			return err
+		}
+		w, err := client.Data()
+		if err != nil {
+			return err
+		}
+		_, err = fmt.Fprint(w, msg)
+		if err != nil {
+			return err
+		}
+		return w.Close()
+	}
+
 	return smtp.SendMail(m.host+":"+m.port, auth, m.from, []string{to}, []byte(msg))
 }
 
