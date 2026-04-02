@@ -378,6 +378,92 @@ type UpdateOrderRequest struct {
 	Notes          *string `json:"notes"`
 }
 
+// RecordOrder saves a pre-captured PayPal order to the database.
+// Used by external Next.js storefronts (e.g. Gardapis) that handle PayPal
+// capture themselves and just need the order persisted here.
+// Protected by AdminAuth. Send X-Site-ID header to target the correct site.
+type RecordOrderRequest struct {
+	CaptureID       string          `json:"capture_id"`
+	CustomerName    string          `json:"customer_name"`
+	CustomerEmail   string          `json:"customer_email"`
+	CustomerPhone   string          `json:"customer_phone"`
+	ShippingAddress json.RawMessage `json:"shipping_address"`
+	Items           json.RawMessage `json:"items"`
+	SubtotalPence   int             `json:"subtotal_pence"`
+	ShippingPence   int             `json:"shipping_pence"`
+	TotalPence      int             `json:"total_pence"`
+	Currency        string          `json:"currency"`
+}
+
+func (h *OrderHandler) RecordOrder(c *fiber.Ctx) error {
+	var req RecordOrderRequest
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": "Invalid request body"})
+	}
+	if req.CaptureID == "" || req.CustomerEmail == "" {
+		return c.Status(400).JSON(fiber.Map{"error": "capture_id and customer_email are required"})
+	}
+
+	orderNumber := fmt.Sprintf("ORD-%s-%s", time.Now().Format("20060102"), strings.ToUpper(uuid.New().String()[:4]))
+
+	currency := req.Currency
+	if currency == "" {
+		currency = "EUR"
+	}
+	items := req.Items
+	if items == nil {
+		items = json.RawMessage("[]")
+	}
+	shippingAddress := req.ShippingAddress
+	if shippingAddress == nil {
+		shippingAddress = json.RawMessage("{}")
+	}
+
+	var phone *string
+	if req.CustomerPhone != "" {
+		phone = &req.CustomerPhone
+	}
+
+	siteID := siteIDFromCtx(c, h.siteID)
+
+	var order models.Order
+	err := h.db.QueryRow(context.Background(),
+		`INSERT INTO orders (
+			id, site_id, order_number,
+			customer_email, customer_name, customer_phone,
+			shipping_address, items,
+			subtotal_pence, shipping_pence, vat_pence, total_pence,
+			currency,
+			payment_status, payment_method, payment_txn_id,
+			status
+		) VALUES (
+			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 0, $11, $12,
+			'paid', 'paypal', $13, 'pending'
+		)
+		RETURNING id, site_id, order_number, customer_email, customer_name,
+		          subtotal_pence, shipping_pence, vat_pence, total_pence,
+		          currency, payment_status, status, created_at`,
+		uuid.New().String(), siteID, orderNumber,
+		strings.ToLower(req.CustomerEmail), req.CustomerName, phone,
+		shippingAddress, items,
+		req.SubtotalPence, req.ShippingPence, req.TotalPence,
+		currency, req.CaptureID,
+	).Scan(
+		&order.ID, &order.SiteID, &order.OrderNumber, &order.CustomerEmail, &order.CustomerName,
+		&order.SubtotalPence, &order.ShippingPence, &order.VATPence, &order.TotalPence,
+		&order.Currency, &order.PaymentStatus, &order.Status, &order.CreatedAt,
+	)
+	if err != nil {
+		log.Printf("[orders] RecordOrder insert: %v", err)
+		return c.Status(500).JSON(fiber.Map{"error": "Failed to save order"})
+	}
+
+	return c.JSON(fiber.Map{
+		"order_number": orderNumber,
+		"order_id":     order.ID,
+	})
+}
+
 // UpdateOrder updates status, tracking number, or notes on an order
 func (h *OrderHandler) UpdateOrder(c *fiber.Ctx) error {
 	id := c.Params("id")

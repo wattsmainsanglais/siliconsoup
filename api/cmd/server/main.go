@@ -111,6 +111,10 @@ func main() {
 	api.Post("/paypal/create-order", orderHandler.CreatePayPalOrder)
 	api.Post("/paypal/capture-order", orderHandler.CapturePayPalOrder)
 
+	// Record a pre-captured order from an external storefront (e.g. Gardapis)
+	// Protected — send Authorization: Bearer <ADMIN_API_KEY> + X-Site-ID header
+	api.Post("/orders/record", middleware.AdminAuth(cfg.AdminAPIKey), orderHandler.RecordOrder)
+
 	// Contact form (rate limited — 5 submissions per IP per hour)
 	api.Post("/contact", middleware.RateLimit(5, time.Hour), contactHandler.Send)
 
