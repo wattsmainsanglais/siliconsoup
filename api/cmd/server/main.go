@@ -7,10 +7,13 @@ import (
 	"os/signal"
 	"syscall"
 
+	"time"
+
 	"github.com/gofiber/fiber/v2"
 	"github.com/siliconsoup/api/internal/config"
 	"github.com/siliconsoup/api/internal/database"
 	"github.com/siliconsoup/api/internal/handlers"
+	"github.com/siliconsoup/api/internal/mailer"
 	"github.com/siliconsoup/api/internal/middleware"
 )
 
@@ -38,20 +41,19 @@ func main() {
 	}
 	log.Printf("Migrations complete")
 
-	// Get site ID (use default SiliconSoup site for now)
+	// Get site ID — required for all DB queries
 	siteID := cfg.SiteID
 	if siteID == "" {
-		// Look up SiliconSoup site ID from database
+		// Fall back to DB lookup by slug
 		var id string
 		err := database.GetDB().QueryRow(context.Background(),
 			"SELECT id FROM sites WHERE slug = 'siliconsoup'").Scan(&id)
 		if err != nil {
-			log.Printf("Warning: Could not find siliconsoup site, using empty site_id")
-		} else {
-			siteID = id
-			log.Printf("Using site ID: %s", siteID)
+			log.Fatalf("Could not resolve site ID — set SITE_ID env var or ensure a 'siliconsoup' slug exists in the DB")
 		}
+		siteID = id
 	}
+	log.Printf("Using site ID: %s", siteID)
 
 	// Create Fiber app
 	app := fiber.New(fiber.Config{
@@ -75,12 +77,24 @@ func main() {
 	// Serve uploaded files (in production, Caddy handles this)
 	app.Static("/uploads", "./uploads")
 
+	// Initialize mailer
+	m := mailer.New(cfg.SmtpHost, cfg.SmtpPort, cfg.SmtpUser, cfg.SmtpPass, cfg.OrderNotificationEmail)
+	if !m.Enabled() {
+		log.Printf("Warning: SMTP not configured — emails disabled")
+	}
+
 	// Initialize handlers
 	productHandler := handlers.NewProductHandler(database.GetDB(), siteID)
 	categoryHandler := handlers.NewCategoryHandler(database.GetDB(), siteID)
 	shippingHandler := handlers.NewShippingHandler(database.GetDB(), siteID)
 	adminHandler := handlers.NewAdminHandler(database.GetDB(), siteID, "./uploads", cfg.MyMemoryEmail)
 	reviewHandler := handlers.NewReviewHandler(database.GetDB(), siteID)
+	orderHandler := handlers.NewOrderHandler(
+		database.GetDB(), siteID,
+		cfg.PayPalClientID, cfg.PayPalClientSecret, cfg.PayPalEnv,
+		m,
+	)
+	contactHandler := handlers.NewContactHandler(m)
 
 	// API routes
 	api := app.Group("/api")
@@ -92,6 +106,17 @@ func main() {
 	api.Post("/products/:slug/reviews", reviewHandler.CreateReview)
 	api.Get("/categories", categoryHandler.ListCategories)
 	api.Get("/shipping-zones", shippingHandler.ListShippingZones)
+
+	// PayPal checkout (public — no API key needed, but PayPal credentials required server-side)
+	api.Post("/paypal/create-order", orderHandler.CreatePayPalOrder)
+	api.Post("/paypal/capture-order", orderHandler.CapturePayPalOrder)
+
+	// Record a pre-captured order from an external storefront (e.g. Gardapis)
+	// Protected — send Authorization: Bearer <ADMIN_API_KEY> + X-Site-ID header
+	api.Post("/orders/record", middleware.AdminAuth(cfg.AdminAPIKey), orderHandler.RecordOrder)
+
+	// Contact form (rate limited — 5 submissions per IP per hour)
+	api.Post("/contact", middleware.RateLimit(5, time.Hour), contactHandler.Send)
 
 	// Admin endpoints (protected by API key)
 	admin := api.Group("/admin", middleware.AdminAuth(cfg.AdminAPIKey))
@@ -140,6 +165,11 @@ func main() {
 	// Reviews
 	admin.Get("/reviews", adminHandler.ListReviews)
 	admin.Delete("/reviews/:id", adminHandler.RemoveReview)
+
+	// Orders
+	admin.Get("/orders", orderHandler.ListOrders)
+	admin.Get("/orders/:id", orderHandler.GetOrder)
+	admin.Put("/orders/:id", orderHandler.UpdateOrder)
 
 	// Graceful shutdown
 	go func() {

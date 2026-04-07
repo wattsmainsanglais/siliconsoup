@@ -10,6 +10,7 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
+	"github.com/gofiber/fiber/v2/middleware/limiter"
 	"github.com/gofiber/fiber/v2/middleware/recover"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -38,6 +39,15 @@ func getAllowedOrigins(environment string) string {
 	}
 	// Production: restrict to known domains
 	return "https://siliconsoup.co.uk,https://www.siliconsoup.co.uk,https://shop.siliconsoup.co.uk,https://siliconsoup.vercel.app,https://siliconsoup-frontend-store.vercel.app,https://gardapis.vercel.app,https://gardapis.eu,https://admin.siliconsoup.com,http://localhost:5173,http://localhost:3000,http://109.106.188.7"
+}
+
+// RateLimit returns a per-IP rate limiter. max = requests allowed, window = time window.
+// Example: middleware.RateLimit(5, time.Hour) — 5 requests per IP per hour.
+func RateLimit(max int, window time.Duration) fiber.Handler {
+	return limiter.New(limiter.Config{
+		Max:        max,
+		Expiration: window,
+	})
 }
 
 // AdminAuth checks the Authorization: Bearer <key> header on admin routes.
