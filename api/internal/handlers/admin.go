@@ -192,12 +192,13 @@ func (h *AdminHandler) UploadImage(c *fiber.Ctx) error {
 
 // ============ IMAGE STORE HANDLERS ============
 
-// ListImages returns all images in the store
+// ListImages returns images belonging to the active site
 func (h *AdminHandler) ListImages(c *fiber.Ctx) error {
 	ctx := context.Background()
 
 	rows, err := h.db.Query(ctx,
-		"SELECT id, filename, url, COALESCE(alt, ''), size_bytes, created_at FROM images ORDER BY created_at DESC")
+		"SELECT id, filename, url, COALESCE(alt, ''), size_bytes, created_at FROM images WHERE site_id = $1 ORDER BY created_at DESC",
+		siteIDFromCtx(c, h.siteID))
 	if err != nil {
 		log.Printf("[admin] ListImages query: %v", err)
 		return c.Status(500).JSON(fiber.Map{"error": "Failed to fetch images"})
@@ -277,9 +278,9 @@ func (h *AdminHandler) UploadToStore(c *fiber.Ctx) error {
 	ctx := context.Background()
 	var img models.Image
 	err = h.db.QueryRow(ctx,
-		`INSERT INTO images (filename, url, alt, size_bytes) VALUES ($1, $2, $3, $4)
+		`INSERT INTO images (filename, url, alt, size_bytes, site_id) VALUES ($1, $2, $3, $4, $5)
 		 RETURNING id, filename, url, COALESCE(alt, ''), size_bytes, created_at`,
-		filename, imagePath, alt, sizeBytes,
+		filename, imagePath, alt, sizeBytes, siteIDFromCtx(c, h.siteID),
 	).Scan(&img.ID, &img.Filename, &img.URL, &img.Alt, &img.SizeBytes, &img.CreatedAt)
 
 	if err != nil {
