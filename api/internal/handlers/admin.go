@@ -663,6 +663,110 @@ func (h *AdminHandler) CreateProductOption(c *fiber.Ctx) error {
 	})
 }
 
+// Shipping routes admin handler
+
+func (h *AdminHandler) AddShippingOption(c *fiber.Ctx) error {
+	var req models.CreateShippingZone
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": "Invalid request body"})
+	}
+
+	siteId := siteIDFromCtx(c, h.siteID)
+
+	ctx := context.Background()
+
+	query := `
+		INSERT INTO shipping_zones (site_id, name, countries, base_rate_pence, per_item_rate_pence, free_threshold_pence)
+		VALUES ($1, $2, $3, $4, $5, $6)
+		RETURNING id, site_id, name, countries, base_rate_pence, per_item_rate_pence, free_threshold_pence, created_at
+	`
+
+	var zone models.ShippingZone
+	err := h.db.QueryRow(ctx, query,
+		siteId,
+		req.Name,
+		req.Countries,
+		req.BaseRatePence,
+		req.PerItemRatePence,
+		req.FreeThresholdPence,
+	).Scan(
+		&zone.ID, &zone.SiteID, &zone.Name, &zone.Countries,
+		&zone.BaseRatePence, &zone.PerItemRatePence, &zone.FreeThresholdPence, &zone.CreatedAt,
+	)
+	if err != nil {
+		log.Printf("[shipping] AddShippingOption insert: %v", err)
+		return c.Status(500).JSON(fiber.Map{"error": "Failed to create shipping zone"})
+	}
+
+	return c.Status(201).JSON(zone)
+}
+
+// UpdateShippingZone updates an existing shipping zone
+func (h *AdminHandler) UpdateShippingZone(c *fiber.Ctx) error {
+	id := c.Params("id")
+	var req models.CreateShippingZone
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": "Invalid request body"})
+	}
+
+	ctx := context.Background()
+
+	query := `
+		UPDATE shipping_zones
+		SET name = COALESCE(NULLIF($1, ''), name),
+			countries = $2,
+			base_rate_pence = $3,
+			per_item_rate_pence = $4,
+			free_threshold_pence = $5
+		WHERE id = $6 AND site_id = $7
+		RETURNING id, site_id, name, countries, base_rate_pence, per_item_rate_pence, free_threshold_pence, created_at
+	`
+
+	var zone models.ShippingZone
+	err := h.db.QueryRow(ctx, query,
+		req.Name,
+		req.Countries,
+		req.BaseRatePence,
+		req.PerItemRatePence,
+		req.FreeThresholdPence,
+		id,
+		siteIDFromCtx(c, h.siteID),
+	).Scan(
+		&zone.ID, &zone.SiteID, &zone.Name, &zone.Countries,
+		&zone.BaseRatePence, &zone.PerItemRatePence, &zone.FreeThresholdPence, &zone.CreatedAt,
+	)
+	if err != nil {
+		if strings.Contains(err.Error(), "no rows") {
+			return c.Status(404).JSON(fiber.Map{"error": "Shipping zone not found"})
+		}
+		log.Printf("[shipping] UpdateShippingZone exec: %v", err)
+		return c.Status(500).JSON(fiber.Map{"error": "Failed to update shipping zone"})
+	}
+
+	return c.JSON(zone)
+}
+
+// DeleteShippingZone deletes a shipping zone
+func (h *AdminHandler) DeleteShippingZone(c *fiber.Ctx) error {
+	id := c.Params("id")
+	ctx := context.Background()
+
+	result, err := h.db.Exec(ctx,
+		"DELETE FROM shipping_zones WHERE id = $1 AND site_id = $2",
+		id, siteIDFromCtx(c, h.siteID))
+
+	if err != nil {
+		log.Printf("[shipping] DeleteShippingZone exec: %v", err)
+		return c.Status(500).JSON(fiber.Map{"error": "Failed to delete shipping zone"})
+	}
+
+	if result.RowsAffected() == 0 {
+		return c.Status(404).JSON(fiber.Map{"error": "Shipping zone not found"})
+	}
+
+	return c.Status(204).Send(nil)
+}
+
 // ============ UPDATE HANDLERS ============
 
 // UpdateCategory updates an existing category
