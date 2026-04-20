@@ -110,6 +110,15 @@ type ShippingZone struct {
 	CreatedAt          time.Time       `json:"created_at"`
 }
 
+// Create shipping zone
+type CreateShippingZone struct {
+	Name               string          `json:"name"`
+	Countries          json.RawMessage `json:"countries"`
+	BaseRatePence      int             `json:"base_rate_pence"`
+	PerItemRatePence   int             `json:"per_item_rate_pence"`
+	FreeThresholdPence *int            `json:"free_threshold_pence,omitempty"`
+}
+
 // Order represents a customer order
 type Order struct {
 	ID              string          `json:"id"`
@@ -139,21 +148,21 @@ type Order struct {
 
 // QuoteRequest represents a custom quote request
 type QuoteRequest struct {
-	ID               string    `json:"id"`
-	SiteID           string    `json:"site_id"`
-	ReferenceNumber  string    `json:"reference_number"`
-	CustomerName     string    `json:"customer_name"`
-	CustomerEmail    string    `json:"customer_email"`
-	CompanyName      *string   `json:"company_name,omitempty"`
-	ProductInterest  *string   `json:"product_interest,omitempty"`
-	Requirements     string    `json:"requirements"`
-	Quantity         *int      `json:"quantity,omitempty"`
-	BudgetIndication *string   `json:"budget_indication,omitempty"`
-	Status           string    `json:"status"`
-	QuotedAmountPence *int     `json:"quoted_amount_pence,omitempty"`
-	InternalNotes    *string   `json:"internal_notes,omitempty"`
-	CreatedAt        time.Time `json:"created_at"`
-	UpdatedAt        time.Time `json:"updated_at"`
+	ID                string    `json:"id"`
+	SiteID            string    `json:"site_id"`
+	ReferenceNumber   string    `json:"reference_number"`
+	CustomerName      string    `json:"customer_name"`
+	CustomerEmail     string    `json:"customer_email"`
+	CompanyName       *string   `json:"company_name,omitempty"`
+	ProductInterest   *string   `json:"product_interest,omitempty"`
+	Requirements      string    `json:"requirements"`
+	Quantity          *int      `json:"quantity,omitempty"`
+	BudgetIndication  *string   `json:"budget_indication,omitempty"`
+	Status            string    `json:"status"`
+	QuotedAmountPence *int      `json:"quoted_amount_pence,omitempty"`
+	InternalNotes     *string   `json:"internal_notes,omitempty"`
+	CreatedAt         time.Time `json:"created_at"`
+	UpdatedAt         time.Time `json:"updated_at"`
 }
 
 // Image represents an image in the central image store

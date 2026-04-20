@@ -171,6 +171,11 @@ func main() {
 	admin.Get("/orders/:id", orderHandler.GetOrder)
 	admin.Put("/orders/:id", orderHandler.UpdateOrder)
 
+	// Shipping Zones
+	admin.Post("/shipping-zones", adminHandler.AddShippingOption)
+	admin.Put("/shipping-zones/:id", adminHandler.UpdateShippingZone)
+	admin.Delete("/shipping-zones/:id", adminHandler.DeleteShippingZone)
+
 	// Graceful shutdown
 	go func() {
 		sigChan := make(chan os.Signal, 1)
