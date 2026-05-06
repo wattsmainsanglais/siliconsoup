@@ -77,9 +77,9 @@ func (h *AdminHandler) UploadImage(c *fiber.Ctx) error {
 		return c.Status(400).JSON(fiber.Map{"error": "Invalid file type. Allowed: jpg, jpeg, png, webp, gif"})
 	}
 
-	// Validate file size (max 5MB)
-	if file.Size > 5*1024*1024 {
-		return c.Status(400).JSON(fiber.Map{"error": "File too large. Max 5MB"})
+	// Validate file size (max 8MB)
+	if file.Size > 8*1024*1024 {
+		return c.Status(400).JSON(fiber.Map{"error": "File too large. Max 8MB"})
 	}
 
 	// Get subfolder from form (products, options, etc.)
@@ -238,9 +238,9 @@ func (h *AdminHandler) UploadToStore(c *fiber.Ctx) error {
 		return c.Status(400).JSON(fiber.Map{"error": "Invalid file type. Allowed: jpg, jpeg, png, webp, gif"})
 	}
 
-	// Validate file size (max 5MB)
-	if file.Size > 5*1024*1024 {
-		return c.Status(400).JSON(fiber.Map{"error": "File too large. Max 5MB"})
+	// Validate file size (max 8MB)
+	if file.Size > 8*1024*1024 {
+		return c.Status(400).JSON(fiber.Map{"error": "File too large. Max 8MB"})
 	}
 
 	uploadDir := filepath.Join(h.uploadPath, "products")
