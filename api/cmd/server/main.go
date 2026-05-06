@@ -57,7 +57,15 @@ func main() {
 
 	// Create Fiber app
 	app := fiber.New(fiber.Config{
-		AppName: "SiliconSoup API",
+		AppName:   "SiliconSoup API",
+		BodyLimit: 8 * 1024 * 1024,
+		ErrorHandler: func(c *fiber.Ctx, err error) error {
+			code := fiber.StatusInternalServerError
+			if e, ok := err.(*fiber.Error); ok {
+				code = e.Code
+			}
+			return c.Status(code).JSON(fiber.Map{"error": err.Error()})
+		},
 	})
 
 	// Setup middleware
