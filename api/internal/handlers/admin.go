@@ -4,13 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"log"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
 
+	"github.com/disintegration/imaging"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -77,8 +77,8 @@ func (h *AdminHandler) UploadImage(c *fiber.Ctx) error {
 		return c.Status(400).JSON(fiber.Map{"error": "Invalid file type. Allowed: jpg, jpeg, png, webp, gif"})
 	}
 
-	// Validate file size (max 8MB)
-	if file.Size > 8*1024*1024 {
+	// Validate file size (max 30MB)
+	if file.Size > 30*1024*1024 {
 		return c.Status(400).JSON(fiber.Map{"error": "File too large. Max 8MB"})
 	}
 
@@ -104,16 +104,20 @@ func (h *AdminHandler) UploadImage(c *fiber.Ctx) error {
 	}
 	defer src.Close()
 
-	dst, err := os.Create(destPath)
+	img, err := imaging.Decode(src)
 	if err != nil {
 		log.Printf("[admin] UploadImage create: %v", err)
-		return c.Status(500).JSON(fiber.Map{"error": "Failed to save file"})
+		return c.Status(500).JSON(fiber.Map{"error": "Failed to decode image"})
 	}
-	defer dst.Close()
 
-	if _, err := io.Copy(dst, src); err != nil {
-		log.Printf("[admin] UploadImage write: %v", err)
-		return c.Status(500).JSON(fiber.Map{"error": "Failed to write file"})
+	if img.Bounds().Dx() > 2000 || img.Bounds().Dy() > 2000 {
+		img = imaging.Fit(img, 2000, 2000, imaging.Lanczos)
+	}
+
+	if err := imaging.Save(img, destPath, imaging.JPEGQuality(85)); err != nil {
+		log.Printf("[admin] UploadImage save: %v", err)
+		return c.Status(500).JSON(fiber.Map{"error": "Failed to save image"})
+
 	}
 
 	imagePath := fmt.Sprintf("/uploads/%s/%s", subfolder, filename)
@@ -238,9 +242,9 @@ func (h *AdminHandler) UploadToStore(c *fiber.Ctx) error {
 		return c.Status(400).JSON(fiber.Map{"error": "Invalid file type. Allowed: jpg, jpeg, png, webp, gif"})
 	}
 
-	// Validate file size (max 8MB)
-	if file.Size > 8*1024*1024 {
-		return c.Status(400).JSON(fiber.Map{"error": "File too large. Max 8MB"})
+	// Validate file size (max 30MB)
+	if file.Size > 30*1024*1024 {
+		return c.Status(400).JSON(fiber.Map{"error": "File too large. Max 30MB"})
 	}
 
 	uploadDir := filepath.Join(h.uploadPath, "products")
@@ -259,36 +263,45 @@ func (h *AdminHandler) UploadToStore(c *fiber.Ctx) error {
 	}
 	defer src.Close()
 
-	dst, err := os.Create(destPath)
+	img, err := imaging.Decode(src)
 	if err != nil {
-		log.Printf("[admin] UploadToStore create: %v", err)
-		return c.Status(500).JSON(fiber.Map{"error": "Failed to save file"})
+		log.Printf("[admin] UploadToStore decode: %v", err)
+		return c.Status(500).JSON(fiber.Map{"error": "Failed to decode image"})
 	}
-	defer dst.Close()
 
-	if _, err := io.Copy(dst, src); err != nil {
-		log.Printf("[admin] UploadToStore write: %v", err)
-		return c.Status(500).JSON(fiber.Map{"error": "Failed to write file"})
+	if img.Bounds().Dx() > 2000 || img.Bounds().Dy() > 2000 {
+		img = imaging.Fit(img, 2000, 2000, imaging.Lanczos)
+	}
+
+	if err := imaging.Save(img, destPath, imaging.JPEGQuality(85)); err != nil {
+		log.Printf("[admin] UploadToStore save: %v", err)
+		return c.Status(500).JSON(fiber.Map{"error": "Failed to save image"})
+	}
+
+	fi, err := os.Stat(destPath)
+	if err != nil {
+		log.Printf("[admin] UploadToStore stat: %v", err)
+		return c.Status(500).JSON(fiber.Map{"error": "Failed to stat saved image"})
 	}
 
 	imagePath := fmt.Sprintf("/uploads/products/%s", filename)
-	sizeBytes := int(file.Size)
+	sizeBytes := int(fi.Size())
 	alt := c.FormValue("alt", "")
 
 	ctx := context.Background()
-	var img models.Image
+	var record models.Image
 	err = h.db.QueryRow(ctx,
 		`INSERT INTO images (filename, url, alt, size_bytes, site_id) VALUES ($1, $2, $3, $4, $5)
 		 RETURNING id, filename, url, COALESCE(alt, ''), size_bytes, created_at`,
 		filename, imagePath, alt, sizeBytes, siteIDFromCtx(c, h.siteID),
-	).Scan(&img.ID, &img.Filename, &img.URL, &img.Alt, &img.SizeBytes, &img.CreatedAt)
+	).Scan(&record.ID, &record.Filename, &record.URL, &record.Alt, &record.SizeBytes, &record.CreatedAt)
 
 	if err != nil {
 		log.Printf("[admin] UploadToStore DB insert: %v", err)
 		return c.Status(500).JSON(fiber.Map{"error": "Failed to save image record", "details": err.Error()})
 	}
 
-	return c.Status(201).JSON(img)
+	return c.Status(201).JSON(record)
 }
 
 // DeleteImage removes an image from the store, disk, and any product/option references
