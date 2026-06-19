@@ -317,3 +317,24 @@ type CreateProductOptionRequest struct {
 	OptionGroupID string `json:"option_group_id"`
 	SortOrder     int    `json:"sort_order"`
 }
+
+type Announcement struct {
+	ID          string    `json:"id"`
+	SiteID      string    `json:"site_id"`
+	Title       string    `json:"title"`
+	Description *string   `json:"description,omitempty"`
+	ImageURL    *string   `json:"image_url,omitempty"`
+	Link        *string   `json:"link,omitempty"`
+	Active      bool      `json:"active"`
+	SortOrder   int       `json:"sort_order"`
+	CreatedAt   time.Time `json:"created_at"`
+}
+
+type CreateAnnouncementRequest struct {
+	Title       string  `json:"title"`
+	Description *string `json:"description"`
+	ImageURL    *string `json:"image_url"`
+	Link        *string `json:"link"`
+	Active      bool    `json:"active"`
+	SortOrder   int     `json:"sort_order"`
+}
