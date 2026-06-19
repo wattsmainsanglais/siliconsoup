@@ -103,6 +103,7 @@ func main() {
 		m,
 	)
 	contactHandler := handlers.NewContactHandler(m)
+	announcementHandler := handlers.NewAnnouncementHandler(database.GetDB(), siteID)
 
 	// API routes
 	api := app.Group("/api")
@@ -114,6 +115,7 @@ func main() {
 	api.Post("/products/:slug/reviews", reviewHandler.CreateReview)
 	api.Get("/categories", categoryHandler.ListCategories)
 	api.Get("/shipping-zones", shippingHandler.ListShippingZones)
+	api.Get("/announcements", announcementHandler.ListAnnouncements)
 
 	// PayPal checkout (public — no API key needed, but PayPal credentials required server-side)
 	api.Post("/paypal/create-order", orderHandler.CreatePayPalOrder)
@@ -183,6 +185,12 @@ func main() {
 	admin.Post("/shipping-zones", adminHandler.AddShippingOption)
 	admin.Put("/shipping-zones/:id", adminHandler.UpdateShippingZone)
 	admin.Delete("/shipping-zones/:id", adminHandler.DeleteShippingZone)
+
+	// Announcements
+	admin.Get("/announcements", announcementHandler.AdminListAnnouncements)
+	admin.Post("/announcements", announcementHandler.CreateAnnouncement)
+	admin.Put("/announcements/:id", announcementHandler.UpdateAnnouncement)
+	admin.Delete("/announcements/:id", announcementHandler.DeleteAnnouncement)
 
 	// Graceful shutdown
 	go func() {
