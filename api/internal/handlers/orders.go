@@ -26,9 +26,17 @@ type OrderHandler struct {
 	paypalClientSecret string
 	paypalEnv          string
 	mailer             *mailer.Mailer
+	// gardapisMailer/gardapisSiteID are only used to route status-update
+	// emails (shipped/delivered) to the right identity — the admin manages
+	// orders for both sites, so UpdateOrder can't assume h.siteID.
+	// SendOrderNotification (new-order-to-Paul) doesn't need this: Gard'Apis
+	// orders arrive via RecordOrder, which never calls the mailer — Gard'Apis
+	// handles its own new-order emails in the Next.js frontend.
+	gardapisMailer *mailer.Mailer
+	gardapisSiteID string
 }
 
-func NewOrderHandler(db *pgxpool.Pool, siteID, paypalClientID, paypalClientSecret, paypalEnv string, m *mailer.Mailer) *OrderHandler {
+func NewOrderHandler(db *pgxpool.Pool, siteID, paypalClientID, paypalClientSecret, paypalEnv string, m, gardapisMailer *mailer.Mailer, gardapisSiteID string) *OrderHandler {
 	return &OrderHandler{
 		db:                 db,
 		siteID:             siteID,
@@ -36,7 +44,19 @@ func NewOrderHandler(db *pgxpool.Pool, siteID, paypalClientID, paypalClientSecre
 		paypalClientSecret: paypalClientSecret,
 		paypalEnv:          paypalEnv,
 		mailer:             m,
+		gardapisMailer:     gardapisMailer,
+		gardapisSiteID:     gardapisSiteID,
 	}
+}
+
+// mailerFor returns the mailer that should send status-update emails for an
+// order belonging to siteID — Gard'Apis if it matches (and is configured),
+// SiliconSoup otherwise.
+func (h *OrderHandler) mailerFor(siteID string) *mailer.Mailer {
+	if h.gardapisSiteID != "" && siteID == h.gardapisSiteID {
+		return h.gardapisMailer
+	}
+	return h.mailer
 }
 
 // ============ PAYPAL HELPERS ============
@@ -524,10 +544,15 @@ func (h *OrderHandler) UpdateOrder(c *fiber.Ctx) error {
 		return c.Status(500).JSON(fiber.Map{"error": "Failed to fetch updated order"})
 	}
 
-	// Fire status email if status changed to shipped or delivered
-	if h.mailer.Enabled() && req.Status != nil && *req.Status != prevStatus {
+	// Fire status email if status changed to shipped or delivered — routed
+	// through the mailer for whichever site this order actually belongs to.
+	if req.Status != nil && *req.Status != prevStatus {
 		if updated.Status == "shipped" || updated.Status == "delivered" {
-			go h.mailer.SendStatusUpdate(updated)
+			if m := h.mailerFor(updated.SiteID); m.Enabled() {
+				go m.SendStatusUpdate(updated)
+			} else {
+				log.Printf("[orders] skipping status email for %s: mailer for site %s not configured", updated.OrderNumber, updated.SiteID)
+			}
 		}
 	}
 

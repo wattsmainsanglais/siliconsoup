@@ -10,22 +10,25 @@ import (
 )
 
 type Mailer struct {
-	host    string
-	port    string
-	user    string
-	pass    string
-	from    string
+	host string
+	port string
+	user string
+	pass string
+	from string
+	// SiteName is used in email subject lines/bodies (e.g. "SiliconSoup", "Gard'Apis")
+	SiteName string
 	// Recipient for admin notifications (new orders, contact form)
 	NotifyEmail string
 }
 
-func New(host, port, user, pass, notifyEmail string) *Mailer {
+func New(host, port, user, pass, notifyEmail, siteName string) *Mailer {
 	return &Mailer{
 		host:        host,
 		port:        port,
 		user:        user,
 		pass:        pass,
 		from:        user,
+		SiteName:    siteName,
 		NotifyEmail: notifyEmail,
 	}
 }
@@ -80,7 +83,7 @@ func (m *Mailer) send(to, subject, body string) error {
 func (m *Mailer) SendOrderNotification(order models.Order, customerName, customerEmail, captureID string) {
 	total := fmt.Sprintf("%.2f %s", float64(order.TotalPence)/100, order.Currency)
 	subject := fmt.Sprintf("New order %s — %s", order.OrderNumber, total)
-	body := fmt.Sprintf(`New order received on SiliconSoup.
+	body := fmt.Sprintf(`New order received on %s.
 
 Order:    %s
 Customer: %s <%s>
@@ -90,6 +93,7 @@ PayPal:   %s
 Log in to the admin to view full details and mark as shipped.
 https://siliconsoup.vercel.app/orders
 `,
+		m.SiteName,
 		order.OrderNumber,
 		customerName, customerEmail,
 		total,
@@ -117,37 +121,41 @@ func (m *Mailer) SendStatusUpdate(order models.Order) {
 		subject = fmt.Sprintf("Your order %s has shipped", order.OrderNumber)
 		body = fmt.Sprintf(`Hi %s,
 
-Great news — your SiliconSoup order has been shipped.
+Great news — your %s order has been shipped.
 
 Order: %s
 %s
 If you have any questions, reply to this email or contact us at %s.
 
 Thanks for your order!
-SiliconSoup
+%s
 `,
 			order.CustomerName,
+			m.SiteName,
 			order.OrderNumber,
 			tracking,
 			m.NotifyEmail,
+			m.SiteName,
 		)
 
 	case "delivered":
 		subject = fmt.Sprintf("Your order %s has been delivered", order.OrderNumber)
 		body = fmt.Sprintf(`Hi %s,
 
-Your SiliconSoup order has been marked as delivered.
+Your %s order has been marked as delivered.
 
 Order: %s
 
 We hope everything arrived in great condition. If you have any issues, reply to this email or contact us at %s.
 
 Thanks for your order!
-SiliconSoup
+%s
 `,
 			order.CustomerName,
+			m.SiteName,
 			order.OrderNumber,
 			m.NotifyEmail,
+			m.SiteName,
 		)
 
 	default:
@@ -163,7 +171,7 @@ SiliconSoup
 
 // SendContactNotification emails Paul when a contact form is submitted
 func (m *Mailer) SendContactNotification(name, fromEmail, message string) {
-	subject := fmt.Sprintf("SiliconSoup contact form — %s", name)
+	subject := fmt.Sprintf("%s contact form — %s", m.SiteName, name)
 	body := fmt.Sprintf(`New contact form submission.
 
 Name:    %s
@@ -183,15 +191,17 @@ Message:
 
 // SendContactAutoReply sends a confirmation to the person who submitted the contact form
 func (m *Mailer) SendContactAutoReply(name, toEmail string) {
-	subject := "Thanks for getting in touch — SiliconSoup"
+	subject := fmt.Sprintf("Thanks for getting in touch — %s", m.SiteName)
 	body := fmt.Sprintf(`Hi %s,
 
-Thanks for contacting SiliconSoup. We've received your message and will get back to you shortly.
+Thanks for contacting %s. We've received your message and will get back to you shortly.
 
-SiliconSoup
+%s
 %s
 `,
 		name,
+		m.SiteName,
+		m.SiteName,
 		m.NotifyEmail,
 	)
 

@@ -20,12 +20,21 @@ type Config struct {
 	PayPalClientSecret string
 	PayPalEnv          string // "sandbox" or "live"
 
-	// SMTP (order notification emails)
+	// SMTP (order notification emails) — SiliconSoup
 	SmtpHost               string
 	SmtpPort               string
 	SmtpUser               string
 	SmtpPass               string
 	OrderNotificationEmail string
+
+	// SMTP — Gard'Apis (separate mailbox/domain, needed for SPF/DKIM alignment
+	// when sending "From: sales@gardapis.eu" — can't reuse the SiliconSoup
+	// credentials for that)
+	GardapisSmtpHost               string
+	GardapisSmtpPort               string
+	GardapisSmtpUser               string
+	GardapisSmtpPass               string
+	GardapisOrderNotificationEmail string
 }
 
 func Load() *Config {
@@ -50,6 +59,12 @@ func Load() *Config {
 		SmtpUser:               getEnv("SMTP_USER", ""),
 		SmtpPass:               getEnv("SMTP_PASS", ""),
 		OrderNotificationEmail: getEnv("ORDER_NOTIFICATION_EMAIL", ""),
+
+		GardapisSmtpHost:               getEnv("GARDAPIS_SMTP_HOST", ""),
+		GardapisSmtpPort:               getEnv("GARDAPIS_SMTP_PORT", "587"),
+		GardapisSmtpUser:               getEnv("GARDAPIS_SMTP_USER", ""),
+		GardapisSmtpPass:               getEnv("GARDAPIS_SMTP_PASS", ""),
+		GardapisOrderNotificationEmail: getEnv("GARDAPIS_ORDER_NOTIFICATION_EMAIL", ""),
 	}
 }
 

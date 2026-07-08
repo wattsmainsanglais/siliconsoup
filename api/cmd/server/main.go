@@ -55,6 +55,14 @@ func main() {
 	}
 	log.Printf("Using site ID: %s", siteID)
 
+	// Resolve Gard'Apis site ID too — needed to route order emails through
+	// the right mailer (see mailerFor in handlers/orders.go)
+	var gardapisSiteID string
+	if err := database.GetDB().QueryRow(context.Background(),
+		"SELECT id FROM sites WHERE slug = 'gardapis'").Scan(&gardapisSiteID); err != nil {
+		log.Printf("Warning: could not resolve Gard'Apis site ID (%v) — Gard'Apis order emails will be skipped, not misrouted", err)
+	}
+
 	// Create Fiber app
 	app := fiber.New(fiber.Config{
 		AppName:   "SiliconSoup API",
@@ -85,10 +93,18 @@ func main() {
 	// Serve uploaded files (in production, Caddy handles this)
 	app.Static("/uploads", "./uploads")
 
-	// Initialize mailer
-	m := mailer.New(cfg.SmtpHost, cfg.SmtpPort, cfg.SmtpUser, cfg.SmtpPass, cfg.OrderNotificationEmail)
+	// Initialize mailers — one per site, since each sends from a different
+	// domain (sales@siliconsoup.com vs sales@gardapis.eu) and that requires
+	// separate SMTP credentials/mailbox for SPF/DKIM to line up, not just a
+	// different "From" header on one shared transport.
+	m := mailer.New(cfg.SmtpHost, cfg.SmtpPort, cfg.SmtpUser, cfg.SmtpPass, cfg.OrderNotificationEmail, "SiliconSoup")
 	if !m.Enabled() {
 		log.Printf("Warning: SMTP not configured — emails disabled")
+	}
+
+	gardapisMailer := mailer.New(cfg.GardapisSmtpHost, cfg.GardapisSmtpPort, cfg.GardapisSmtpUser, cfg.GardapisSmtpPass, cfg.GardapisOrderNotificationEmail, "Gard'Apis")
+	if !gardapisMailer.Enabled() {
+		log.Printf("Warning: Gard'Apis SMTP not configured — Gard'Apis order emails will be skipped (not sent under the SiliconSoup identity) until GARDAPIS_SMTP_* env vars are set")
 	}
 
 	// Initialize handlers
@@ -100,7 +116,7 @@ func main() {
 	orderHandler := handlers.NewOrderHandler(
 		database.GetDB(), siteID,
 		cfg.PayPalClientID, cfg.PayPalClientSecret, cfg.PayPalEnv,
-		m,
+		m, gardapisMailer, gardapisSiteID,
 	)
 	contactHandler := handlers.NewContactHandler(m)
 	announcementHandler := handlers.NewAnnouncementHandler(database.GetDB(), siteID)
