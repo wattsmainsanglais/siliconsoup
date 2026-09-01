@@ -19,12 +19,18 @@ type ContactRequest struct {
 	Name    string `json:"name"`
 	Email   string `json:"email"`
 	Message string `json:"message"`
+	Website string `json:"website"` // honeypot — real users never see or fill this field
 }
 
 func (h *ContactHandler) Send(c *fiber.Ctx) error {
 	var req ContactRequest
 	if err := c.BodyParser(&req); err != nil {
 		return c.Status(400).JSON(fiber.Map{"error": "Invalid request body"})
+	}
+
+	if strings.TrimSpace(req.Website) != "" {
+		// Bot filled the honeypot field — pretend success so it doesn't adapt.
+		return c.JSON(fiber.Map{"ok": true})
 	}
 
 	req.Name = strings.TrimSpace(req.Name)
